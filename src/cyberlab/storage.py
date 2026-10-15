@@ -12,6 +12,8 @@ from cyberlab.domain import ComputerState
 
 @dataclass(frozen=True)
 class HistoryEntry:
+    """Снимок конкретного прохождения; parent_id связывает его с предыдущим снимком."""
+
     id: str
     session_id: str
     parent_id: str | None
@@ -30,6 +32,8 @@ class Session:
 
 
 class HistoryRepository:
+    """Читает и записывает историю. Правила сценария остаются в domain.py."""
+
     def __init__(self, path: str | Path) -> None:
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -87,27 +91,34 @@ class HistoryRepository:
             "ORDER BY created_at DESC, rowid DESC LIMIT 1",
             (scenario_id,),
         ).fetchone()
-        return Session(row["id"], row["scenario_id"], row["active_entry_id"]) if row else None
+        if row is None:
+            return None
+        return Session(
+            id=row["id"], scenario_id=row["scenario_id"], active_entry_id=row["active_entry_id"]
+        )
 
     def create_session(self, scenario_id: str, start_node: str) -> Session:
-        session_id, entry_id = uuid4().hex, uuid4().hex
-        now = datetime.now(UTC).isoformat()
+        session_id = uuid4().hex
+        entry_id = uuid4().hex
+        created_at = datetime.now(UTC).isoformat()
+        root_entry = HistoryEntry(
+            id=entry_id,
+            session_id=session_id,
+            parent_id=None,
+            choice_id=None,
+            choice_title="Начало сценария",
+            node_id=start_node,
+            state=ComputerState(),
+            created_at=created_at,
+        )
         with self.connection:
+            # Сначала создаём сессию без указателя: её первый шаг ещё не записан.
             self.connection.execute(
-                "INSERT INTO sessions VALUES (?, ?, NULL, ?)", (session_id, scenario_id, now)
+                "INSERT INTO sessions (id, scenario_id, active_entry_id, created_at) "
+                "VALUES (?, ?, NULL, ?)",
+                (session_id, scenario_id, created_at),
             )
-            self._insert(
-                HistoryEntry(
-                    entry_id,
-                    session_id,
-                    None,
-                    None,
-                    "Начало сценария",
-                    start_node,
-                    ComputerState(),
-                    now,
-                )
-            )
+            self._insert(root_entry)
             self.connection.execute(
                 "UPDATE sessions SET active_entry_id = ? WHERE id = ?", (entry_id, session_id)
             )
@@ -128,6 +139,7 @@ class HistoryRepository:
         return [self._decode(row) for row in rows]
 
     def activate(self, session_id: str, entry_id: str) -> HistoryEntry:
+        """Сохранить выбор шага без изменения самого снимка или его потомков."""
         entry = self.entry(entry_id, session_id)
         with self.connection:
             self.connection.execute(
@@ -144,29 +156,31 @@ class HistoryRepository:
         node_id: str,
         state: ComputerState,
     ) -> HistoryEntry:
-        # Повтор того же решения открывает уже сохранённую ветку без дубликатов.
+        """Добавить решение к parent_id или открыть уже существующего ребёнка."""
+        # with connection объединяет запись снимка и указателя в транзакцию:
+        # успешное завершение — commit, исключение — rollback обоих изменений.
         with self.connection:
+            # Проверка не даёт добавить решение к шагу из чужой сессии.
             self.entry(parent_id, session_id)
-            existing = self.connection.execute(
+            existing_row = self.connection.execute(
                 "SELECT * FROM entries WHERE session_id = ? AND parent_id = ? AND choice_id = ?",
                 (session_id, parent_id, choice_id),
             ).fetchone()
-            entry = (
-                self._decode(existing)
-                if existing
-                else HistoryEntry(
-                    uuid4().hex,
-                    session_id,
-                    parent_id,
-                    choice_id,
-                    choice_title,
-                    node_id,
-                    state,
-                    datetime.now(UTC).isoformat(),
+            if existing_row is None:
+                entry = HistoryEntry(
+                    id=uuid4().hex,
+                    session_id=session_id,
+                    parent_id=parent_id,
+                    choice_id=choice_id,
+                    choice_title=choice_title,
+                    node_id=node_id,
+                    state=state,
+                    created_at=datetime.now(UTC).isoformat(),
                 )
-            )
-            if existing is None:
                 self._insert(entry)
+            else:
+                # Тот же выбор из того же шага открывает готовую ветку без дубликата.
+                entry = self._decode(existing_row)
             self.connection.execute(
                 "UPDATE sessions SET active_entry_id = ? WHERE id = ?", (entry.id, session_id)
             )
@@ -174,7 +188,9 @@ class HistoryRepository:
 
     def _insert(self, entry: HistoryEntry) -> None:
         self.connection.execute(
-            "INSERT INTO entries VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO entries "
+            "(id, session_id, parent_id, choice_id, choice_title, node_id, state_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 entry.id,
                 entry.session_id,
@@ -189,15 +205,16 @@ class HistoryRepository:
 
     @staticmethod
     def _decode(row: sqlite3.Row) -> HistoryEntry:
-        state = json.loads(row["state_json"])
-        state["events"] = tuple(state["events"])
+        state_data = json.loads(row["state_json"])
+        # JSON хранит массив как список. Для неизменяемого снимка нужен кортеж.
+        state_data["events"] = tuple(state_data["events"])
         return HistoryEntry(
-            row["id"],
-            row["session_id"],
-            row["parent_id"],
-            row["choice_id"],
-            row["choice_title"],
-            row["node_id"],
-            ComputerState(**state),
-            row["created_at"],
+            id=row["id"],
+            session_id=row["session_id"],
+            parent_id=row["parent_id"],
+            choice_id=row["choice_id"],
+            choice_title=row["choice_title"],
+            node_id=row["node_id"],
+            state=ComputerState(**state_data),
+            created_at=row["created_at"],
         )

@@ -87,9 +87,32 @@ def test_comparison_can_collapse_on_small_screens(qtbot, window):
     assert not window.comparison_body.isVisible()
     choose(qtbot, window, "report")
     assert window.comparison_body.isVisible()
+    qtbot.waitUntil(lambda: window.comparison.geometry().bottom() < window.comparison_body.height())
     qtbot.mouseClick(window.comparison_toggle, Qt.MouseButton.LeftButton)
     assert not window.comparison_body.isVisible()
     assert window.lab.node.id == "reported"
+
+
+def test_mentor_follows_rewind_and_independent_comparison(qtbot, window):
+    choose(qtbot, window, "open_link")
+    choose(qtbot, window, "submit")
+    choose(qtbot, window, "ignore")
+    damage_id = window.lab.active.id
+    assert "Виртуальные файлы зашифрованы" in window.computer.mentor_state.text()
+
+    window.history.setCurrentItem(window.history.topLevelItem(0))
+    assert "риск: 0/100" in window.computer.mentor_state.text()
+    choose(qtbot, window, "report")
+    safe_entry = window.lab.active
+    assert "риск ниже" in window.computer.mentor_comparison.text()
+
+    window.left_branch.setCurrentIndex(window.left_branch.findData(safe_entry.id))
+    window.right_branch.setCurrentIndex(window.right_branch.findData(damage_id))
+    assert "риск выше" in window.computer.mentor_comparison.text()
+    assert "риск: 0/100" in window.computer.mentor_state.text()
+    assert window.lab.active == safe_entry
+    window.computer.tabs.setCurrentIndex(4)
+    assert window.computer.mentor_state.isVisible()
 
 
 def test_gui_restart_shows_saved_state(qtbot, tmp_path):

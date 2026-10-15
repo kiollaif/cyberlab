@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from cyberlab.domain import ComputerState, compare_states
+from cyberlab.domain import ComputerState, StateChange, compare_states
 from cyberlab.scenarios import PHISHING
 
 
@@ -47,6 +47,17 @@ def test_terminal_node_rejects_further_decisions():
     node, state = play("report")
     with pytest.raises(ValueError, match="недоступно"):
         PHISHING.advance(node, state, "open_link")
+
+
+def test_change_applies_zero_and_false_but_preserves_unspecified_fields():
+    original_state = ComputerState(risk=75, browser_open=True, credentials_exposed=True)
+    updated_state = StateChange(risk=0, browser_open=False).apply(original_state, "Проверка")
+    assert updated_state.risk == 0
+    assert not updated_state.browser_open
+    assert updated_state.credentials_exposed
+    assert updated_state.events == original_state.events + ("Проверка",)
+    assert original_state.risk == 75
+    assert original_state.browser_open
 
 
 def test_scenario_graph_has_no_dead_links_or_unreachable_nodes():

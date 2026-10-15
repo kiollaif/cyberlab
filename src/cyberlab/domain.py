@@ -46,12 +46,22 @@ class StateChange:
     browser_open: bool | None = None
 
     def apply(self, state: ComputerState, event: str) -> ComputerState:
-        updates = {key: value for key, value in asdict(self).items() if value is not None}
-        return replace(state, **updates, events=(*state.events, event))
+        """Создать новый снимок с изменениями и дополнительной записью журнала."""
+        updated_values = {}
+        for field_name, new_value in asdict(self).items():
+            # False и 0 тоже являются изменениями. Пропускаем только None.
+            if new_value is not None:
+                updated_values[field_name] = new_value
+
+        new_events = state.events + (event,)
+        # replace создаёт копию dataclass: исходный снимок старой ветки остаётся прежним.
+        return replace(state, **updated_values, events=new_events)
 
 
 @dataclass(frozen=True)
 class Choice:
+    """Один вариант решения: куда перейти и какие показатели изменить."""
+
     id: str
     title: str
     hint: str
@@ -62,6 +72,8 @@ class Choice:
 
 @dataclass(frozen=True)
 class ScenarioNode:
+    """Ситуация сценария. Пустой choices означает завершение ветки."""
+
     id: str
     title: str
     description: str
@@ -74,6 +86,8 @@ class ScenarioNode:
 
 @dataclass(frozen=True)
 class Scenario:
+    """Заранее описанные ситуации и переходы между ними, без истории прохождения."""
+
     id: str
     title: str
     start_node: str
@@ -88,9 +102,13 @@ class Scenario:
     def advance(
         self, node_id: str, state: ComputerState, choice_id: str
     ) -> tuple[ScenarioNode, ComputerState, Choice]:
-        for choice in self.node(node_id).choices:
+        """Найти доступное решение и вычислить следующий шаг и состояние ПК."""
+        current_node = self.node(node_id)
+        for choice in current_node.choices:
             if choice.id == choice_id:
-                return self.node(choice.next_node), choice.change.apply(state, choice.event), choice
+                next_node = self.node(choice.next_node)
+                next_state = choice.change.apply(state, choice.event)
+                return next_node, next_state, choice
         raise ValueError(f"Решение {choice_id!r} недоступно на шаге {node_id!r}.")
 
 
@@ -108,7 +126,7 @@ class ComparisonRow:
 def compare_states(left: ComputerState, right: ComputerState) -> tuple[ComparisonRow, ...]:
     """Те же понятные показатели используются в интерфейсе и автоматических тестах."""
 
-    def values(state: ComputerState) -> tuple[str, ...]:
+    def display_values(state: ComputerState) -> tuple[str, ...]:
         return (
             f"{state.risk} / 100",
             "Раскрыты" if state.credentials_exposed else "Защищены",
@@ -118,7 +136,10 @@ def compare_states(left: ComputerState, right: ComputerState) -> tuple[Compariso
         )
 
     labels = ("Учебный риск", "Учётные данные", "Файлы", "Сеть", "Письмо")
-    return tuple(
-        ComparisonRow(label, a, b)
-        for label, a, b in zip(labels, values(left), values(right), strict=True)
-    )
+    comparison_rows = []
+    # zip берёт по одному элементу из каждого набора в одинаковом порядке.
+    for label, left_value, right_value in zip(
+        labels, display_values(left), display_values(right), strict=True
+    ):
+        comparison_rows.append(ComparisonRow(label, left_value, right_value))
+    return tuple(comparison_rows)

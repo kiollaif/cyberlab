@@ -1,5 +1,6 @@
 """Только отображение виртуального ПК: почта, файлы, журнал и браузер."""
 
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QListWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
 
 from cyberlab.domain import VIRTUAL_FILES, ComputerState
@@ -19,12 +20,22 @@ class VirtualComputer(QWidget):
         layout.addWidget(
             create_label("Почта, файлы и сеть существуют только внутри модели.", "muted")
         )
+        self.notification = create_label("Изменения после решения будут показаны здесь.", "badge")
+        layout.addWidget(self.notification)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("computer_tabs")
+        self.tabs.setUsesScrollButtons(True)
         layout.addWidget(self.tabs)
 
         mail = QWidget()
         mail_layout = QVBoxLayout(mail)
+        mail_layout.addWidget(
+            create_label(
+                "Почта: прочитайте сообщение. Проверка адресов выполняется "
+                "выбором «Проверить письмо».",
+                "muted",
+            )
+        )
         self.mail_status = create_label()
         self.mail_status.setObjectName("mail_status")
         mail_layout.addWidget(self.mail_status)
@@ -47,6 +58,11 @@ class VirtualComputer(QWidget):
 
         files = QWidget()
         files_layout = QVBoxLayout(files)
+        files_layout.addWidget(
+            create_label(
+                "Файлы: выберите название, чтобы увидеть учебное содержимое и доступность.", "muted"
+            )
+        )
         self.file_list = QListWidget()
         self.file_list.setObjectName("virtual_files")
         self.file_list.addItems([file.name for file in VIRTUAL_FILES])
@@ -64,21 +80,35 @@ class VirtualComputer(QWidget):
         self.journal = QListWidget()
         self.journal.setObjectName("event_journal")
         self.journal.setWordWrap(True)
-        self.tabs.addTab(self.journal, "Журнал")
+        journal_page = QWidget()
+        journal_layout = QVBoxLayout(journal_page)
+        journal_layout.addWidget(
+            create_label(
+                "Журнал: события только выбранного пути, от первого до последнего.", "muted"
+            )
+        )
+        journal_layout.addWidget(self.journal)
+        self.tabs.addTab(journal_page, "Журнал")
 
         browser = QWidget()
         browser_layout = QVBoxLayout(browser)
+        browser_layout.addWidget(
+            create_label("Браузер: макет страницы, которую вы открыли внутри сценария.", "muted")
+        )
         self.browser_status = create_label()
         self.browser_status.setObjectName("browser_status")
         browser_layout.addWidget(self.browser_status)
-        browser_layout.addWidget(create_label("login.cyberlab-check.invalid", "badge"))
-        browser_layout.addWidget(create_label("Подтвердите учётную запись", "heading"))
-        browser_layout.addWidget(
+        self.browser_page = QWidget()
+        page_layout = QVBoxLayout(self.browser_page)
+        page_layout.addWidget(create_label("login.cyberlab-check.invalid", "badge"))
+        page_layout.addWidget(create_label("Подтвердите учётную запись", "heading"))
+        page_layout.addWidget(
             create_label(
                 "Это макет поддельной страницы. Настоящая сеть не используется. "
-                "Отправка вымышленного пароля моделируется выбором решения в центре окна."
+                "Отправка вымышленного пароля моделируется выбором решения на экране ситуации."
             )
         )
+        browser_layout.addWidget(self.browser_page)
         browser_layout.addStretch()
         self.tabs.addTab(make_scrollable(browser), "Браузер")
 
@@ -86,14 +116,19 @@ class VirtualComputer(QWidget):
         mentor_layout = QVBoxLayout(mentor_panel)
         mentor_layout.addWidget(create_label("Учебный наставник", "heading"))
         mentor_layout.addWidget(
-            create_label("Локальные подсказки по правилам, без AI-модели.", "muted")
+            create_label(
+                "Наставник: что происходит сейчас и какие признаки стоит заметить. "
+                "Локальные подсказки по правилам, без AI-модели.",
+                "muted",
+            )
         )
         self.mentor_state = create_label()
         self.mentor_state.setObjectName("mentor_state")
         mentor_layout.addWidget(self.mentor_state)
-        mentor_layout.addWidget(create_label("Выбранные ветки A и B", "heading"))
+        mentor_layout.addWidget(create_label("Последнее выбранное сравнение", "heading"))
         self.mentor_comparison = create_label()
         self.mentor_comparison.setObjectName("mentor_comparison")
+        self.mentor_comparison.setText("Сравнение доступно в итогах и в разделе «Ваши решения».")
         mentor_layout.addWidget(self.mentor_comparison)
         mentor_layout.addStretch()
         self.tabs.addTab(make_scrollable(mentor_panel), "Наставник")
@@ -101,6 +136,11 @@ class VirtualComputer(QWidget):
     def render(self, state: ComputerState) -> None:
         previous_state = self.state
         self.state = state
+        if state != previous_state:
+            self._highlight_changes(previous_state, state)
+            self.mentor_comparison.setText(
+                "Сравнение доступно в итогах и в разделе «Ваши решения»."
+            )
         self.mentor_state.setText(explain_state(state))
         self.mail_status.setText(
             "КАРАНТИН · письмо изолировано" if state.email_quarantined else "ВХОДЯЩИЕ · 1 письмо"
@@ -117,6 +157,7 @@ class VirtualComputer(QWidget):
         self.browser_status.setText(
             "Страница открыта" if state.browser_open else "Страница закрыта"
         )
+        self.browser_page.setVisible(state.browser_open)
         self._show_file(self.file_list.currentRow())
         # При новом последствии показываем связанную вкладку. При простом
         # обновлении того же снимка выбранная пользователем вкладка не сбрасывается.
@@ -126,6 +167,36 @@ class VirtualComputer(QWidget):
             self.tabs.setCurrentIndex(3)
         elif not state.browser_open and previous_state.browser_open:
             self.tabs.setCurrentIndex(0)
+
+    def _highlight_changes(self, before: ComputerState, after: ComputerState) -> None:
+        changed_tabs = {2}
+        notices = []
+        if before.files_encrypted != after.files_encrypted:
+            changed_tabs.add(1)
+            notices.append(
+                "Файлы стали недоступны в симуляции. Настоящие файлы не затронуты."
+                if after.files_encrypted
+                else "Снова открыт снимок с доступными файлами."
+            )
+        if before.credentials_exposed != after.credentials_exposed:
+            notices.append(
+                "Учебный пароль раскрыт на чужой странице."
+                if after.credentials_exposed
+                else "В этом снимке пароль ещё не раскрыт."
+            )
+        if before.browser_open != after.browser_open:
+            changed_tabs.add(3)
+        if (before.email_inspected, before.email_quarantined) != (
+            after.email_inspected,
+            after.email_quarantined,
+        ):
+            changed_tabs.add(0)
+        self.notification.setText("\n".join(notices) or after.events[-1])
+        for index, title in enumerate(("Почта", "Файлы", "Журнал", "Браузер", "Наставник")):
+            changed = index in changed_tabs
+            self.tabs.setTabText(index, title + (" •" if changed else ""))
+            self.tabs.setTabToolTip(index, "Изменилось в текущем снимке" if changed else title)
+            self.tabs.tabBar().setTabTextColor(index, QColor("#efc18e" if changed else "#e1eaf0"))
 
     def _show_file(self, row: int) -> None:
         if row < 0:

@@ -97,6 +97,14 @@ class HistoryRepository:
             id=row["id"], scenario_id=row["scenario_id"], active_entry_id=row["active_entry_id"]
         )
 
+    def sessions(self, scenario_id: str) -> list[Session]:
+        """Все сохранённые тренировки этого сценария, начиная с последней."""
+        rows = self.connection.execute(
+            "SELECT * FROM sessions WHERE scenario_id = ? ORDER BY created_at DESC, rowid DESC",
+            (scenario_id,),
+        ).fetchall()
+        return [Session(row["id"], row["scenario_id"], row["active_entry_id"]) for row in rows]
+
     def create_session(self, scenario_id: str, start_node: str) -> Session:
         session_id = uuid4().hex
         entry_id = uuid4().hex

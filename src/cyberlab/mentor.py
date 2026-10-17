@@ -17,7 +17,7 @@ def explain_state(state: ComputerState) -> str:
     elif state.browser_open:
         paragraphs.append(
             "Поддельная страница открыта, но пароль ещё не отправлен. "
-            "Сравните отправку учебного пароля с закрытием страницы."
+            "Обратите внимание на адрес: знакомый внешний вид не доказывает подлинность."
         )
     else:
         paragraphs.append("На этом снимке учётные данные защищены.")
@@ -61,3 +61,40 @@ def explain_comparison(left: ComputerState, right: ComputerState) -> str:
     elif right.risk > left.risk:
         differences.append("В ветке B учебный риск выше, чем в A.")
     return "\n\n".join(differences)
+
+
+def explain_decision(choice_id: str | None, before: ComputerState, after: ComputerState) -> str:
+    """Объяснить уже совершённый выбор; вызывается только после его сохранения."""
+    if after.files_encrypted and not before.files_encrypted:
+        return (
+            "Подозрительная активность осталась без ответа. В этом сценарии атака "
+            "продолжилась и закрыла доступ к учебным файлам. Настоящие файлы не изменялись."
+        )
+    if after.credentials_exposed and not before.credentials_exposed:
+        return (
+            "Пароль отправлен на чужой сайт. Поэтому в модели его получил злоумышленник. "
+            "Внешний вид страницы не подтверждает её подлинность."
+        )
+    if not after.network_connected and before.network_connected:
+        return (
+            "Отключение учебной сети остановило дальнейшую атаку. Уже раскрытый пароль "
+            "остался раскрытым: в реальной ситуации его меняют через доверенный канал "
+            "и завершают посторонние сеансы."
+        )
+    if after.email_quarantined and not before.email_quarantined:
+        return (
+            "Письмо изолировано после сообщения специалистам. "
+            "Это остановило продвижение по подозрительной ссылке."
+            + (" Вы успели закрыть страницу до отправки пароля." if before.browser_open else "")
+        )
+    if after.browser_open and not before.browser_open:
+        return (
+            "Ссылка привела на чужой домен. В модели открытие такой страницы повысило риск, "
+            "но само по себе ещё не передало пароль."
+        )
+    if choice_id == "inspect":
+        return (
+            "Проверка показала настоящий адрес отправителя и цель ссылки. Они отличаются "
+            "от cyberlab.example. Срочность и похожее имя помогают заметить обман."
+        )
+    return f"Зафиксировано событие: {after.events[-1]} Учебный риск: {before.risk} → {after.risk}."

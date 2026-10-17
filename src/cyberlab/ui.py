@@ -1,331 +1,352 @@
-"""Главное окно: собирает панели и передаёт действия пользователя в LabSession."""
+"""Навигация окна: меню → ситуация → последствие → итог. Данные хранит LabSession."""
 
 import sqlite3
 from collections.abc import Callable
+from datetime import datetime
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QComboBox,
-    QFrame,
-    QGridLayout,
     QHBoxLayout,
-    QHeaderView,
-    QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
-    QPushButton,
-    QScrollArea,
-    QSizePolicy,
-    QSplitter,
-    QTableWidget,
-    QTableWidgetItem,
-    QTreeWidget,
-    QTreeWidgetItem,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from cyberlab.domain import ComputerState, compare_states
+from cyberlab.learning import history_path
+from cyberlab.review_pages import ComparisonPage, DecisionsPage
 from cyberlab.session import LabSession
-from cyberlab.storage import HistoryEntry
+from cyberlab.simulation_pages import ConsequencePage, ResultsPage, SituationPage
 from cyberlab.styles import STYLESHEET
-from cyberlab.ui_helpers import create_label, create_panel
+from cyberlab.tutorial import TutorialPage
+from cyberlab.ui_helpers import action_button, create_label, make_scrollable
 from cyberlab.virtual_computer import VirtualComputer
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, lab: LabSession) -> None:
+    def __init__(self, lab: LabSession, settings: QSettings | None = None) -> None:
         super().__init__()
         self.lab = lab
-        self.entries_by_id: dict[str, HistoryEntry] = {}
+        # Настройки обучения отделены от снимков: схема старой SQLite остаётся v1.
+        self.settings = settings if settings is not None else QSettings("CYBERLAB", "CYBERLAB")
+        saved_id = self.settings.value("last_session", "", type=str)
+        if any(session.id == saved_id for session in lab.repository.sessions(lab.scenario.id)):
+            lab.open_session(saved_id)
+        self.back_stack: list[QWidget] = []
+        self.pages: dict[QWidget, QWidget] = {}
+        self.tutorial_starts_session = False
         self.setWindowTitle("CYBERLAB — лаборатория решений")
-        self.setMinimumSize(1120, 720)
+        # Qt считает размеры в логических пикселях: при масштабе 150% их меньше.
+        self.setMinimumSize(600, 400)
         available = self.screen().availableGeometry()
-        self.resize(min(1440, available.width() - 40), min(940, available.height() - 40))
+        self.resize(min(1280, available.width() - 40), min(800, available.height() - 40))
         self.setStyleSheet(STYLESHEET)
         root = QWidget()
         root.setObjectName("root")
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(20, 16, 20, 14)
-        layout.setSpacing(12)
-
+        layout.setContentsMargins(16, 12, 16, 12)
         header = QHBoxLayout()
         header.addWidget(create_label("CYBERLAB", "brand", wrap=False))
-        header.addWidget(
-            create_label("Лаборатория решений\nИзучайте угрозы через последствия", "muted")
-        )
         header.addStretch()
-        header.addWidget(create_label("Локальная симуляция", "badge", wrap=False))
-        self.restart_button = QPushButton("К началу")
-        self.restart_button.setObjectName("return_to_start")
-        self.restart_button.setToolTip("Вернуться к корню истории, сохранив все ветки")
-        self.restart_button.clicked.connect(self._return_to_start)
-        header.addWidget(self.restart_button)
+        self.back_button = action_button("Назад")
+        self.back_button.setMaximumWidth(150)
+        self.back_button.clicked.connect(self._back)
+        header.addWidget(self.back_button)
+        self.menu_button = action_button("В главное меню")
+        self.menu_button.setMaximumWidth(220)
+        self.menu_button.clicked.connect(self.show_menu)
+        header.addWidget(self.menu_button)
         layout.addLayout(header)
+        self.stack = QStackedWidget()
+        layout.addWidget(self.stack, 1)
 
-        metrics = QGridLayout()
-        self.metric_values: list[QLabel] = []
-        for index, title in enumerate(
-            ("Учебный риск", "Учётные данные", "Виртуальные файлы", "Сеть")
-        ):
-            frame = QFrame()
-            frame.setObjectName("metric")
-            box = QVBoxLayout(frame)
-            box.addWidget(create_label(title, "muted"))
-            value = create_label("", "metricValue", wrap=False)
-            self.metric_values.append(value)
-            box.addWidget(value)
-            metrics.addWidget(frame, 0, index)
-        layout.addLayout(metrics)
-
-        split = QSplitter(Qt.Orientation.Horizontal)
-        # В невысоком окне эти панели могут сжиматься: внутри уже есть прокрутка.
-        # Так таблица сравнения остаётся целиком в своей панели.
-        split.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Ignored)
-        split.setChildrenCollapsible(False)
-        history_panel, history_layout = create_panel("История решений")
-        history_panel.setMinimumWidth(240)
-        history_layout.addWidget(
-            create_label("Выберите шаг и примите другое решение. Старые ветки сохранятся.", "muted")
-        )
-        self.history = QTreeWidget()
-        self.history.setObjectName("decision_history")
-        self.history.setHeaderHidden(True)
-        self.history.setWordWrap(True)
-        self.history.setIndentation(15)
-        self.history.itemSelectionChanged.connect(self._history_selected)
-        history_layout.addWidget(self.history)
-        self.history_count = create_label("", "muted")
-        history_layout.addWidget(self.history_count)
-        split.addWidget(history_panel)
-
-        story_panel, story_layout = create_panel(f"01  /  {self.lab.scenario.title}")
-        story_panel.setMinimumWidth(365)
-        self.stage_label = create_label("", "badge")
-        story_layout.addWidget(self.stage_label)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        story_body = QWidget()
-        story_body_layout = QVBoxLayout(story_body)
-        story_body_layout.setContentsMargins(0, 0, 4, 0)
-        self.story_title = create_label("", "storyTitle")
-        self.story_title.setObjectName("story_title")
-        self.story_title.setStyleSheet("font-size: 23px; font-weight: 700;")
-        story_body_layout.addWidget(self.story_title)
-        self.story_description = create_label()
-        self.story_description.setObjectName("story_description")
-        story_body_layout.addWidget(self.story_description)
-        self.actions = QVBoxLayout()
-        self.actions.setSpacing(9)
-        story_body_layout.addLayout(self.actions)
-        story_body_layout.addStretch()
-        scroll.setWidget(story_body)
-        story_layout.addWidget(scroll)
-        split.addWidget(story_panel)
-
-        computer_panel, computer_layout = create_panel("Экран компьютера")
-        computer_panel.setMinimumWidth(330)
+        self.menu = self._create_menu()
+        self.situation = SituationPage()
+        self.consequence = ConsequencePage()
+        self.results = ResultsPage()
+        self.decisions = DecisionsPage()
+        self.comparison = ComparisonPage()
+        self.tutorial = TutorialPage()
         self.computer = VirtualComputer()
-        computer_layout.addWidget(self.computer)
-        split.addWidget(computer_panel)
-        split.setSizes([290, 610, 430])
-        layout.addWidget(split, 1)
+        self.computer.setMinimumHeight(450)
+        self.saved_sessions = self._create_sessions_page()
+        for page in (
+            self.menu,
+            self.situation,
+            self.consequence,
+            self.results,
+            self.decisions,
+            self.comparison,
+            self.tutorial,
+            self.computer,
+            self.saved_sessions,
+        ):
+            self._add_page(page)
+        self.situation.choice_selected.connect(self._choose)
+        self.situation.details_requested.connect(self._open_computer)
+        self.situation.decisions_requested.connect(self._open_decisions)
+        self.consequence.continue_requested.connect(self._continue_after_decision)
+        self.consequence.details_requested.connect(self._open_computer)
+        self.consequence.alternative_requested.connect(self._try_alternative)
+        self.results.retry_requested.connect(lambda: self._perform(self._start_new_session))
+        self.results.decisions_requested.connect(self._open_decisions)
+        self.results.compare_requested.connect(self._open_comparison)
+        self.results.menu_requested.connect(self.show_menu)
+        self.results.details_requested.connect(self._open_computer)
+        self.decisions.entry_requested.connect(self._go_to)
+        self.decisions.alternative_requested.connect(self._try_alternative)
+        self.decisions.root_requested.connect(self._return_to_start)
+        self.decisions.compare_requested.connect(self._open_comparison)
+        self.tutorial.finished.connect(self._finish_tutorial)
+        self.comparison.states_selected.connect(self.computer.render_comparison)
+        self.show_menu()
 
-        comparison_panel, comparison_layout = create_panel("Сравнение веток")
-        self.comparison_toggle = QPushButton("Показать сравнение")
-        self.comparison_toggle.setObjectName("toggle_comparison")
-        self.comparison_toggle.setCheckable(True)
-        comparison_heading = QHBoxLayout()
-        comparison_heading.addWidget(comparison_layout.takeAt(0).widget())
-        comparison_heading.addStretch()
-        comparison_heading.addWidget(self.comparison_toggle)
-        comparison_layout.addLayout(comparison_heading)
-        self.comparison_body = QWidget()
-        comparison_body_layout = QVBoxLayout(self.comparison_body)
-        comparison_body_layout.setContentsMargins(0, 0, 0, 0)
-        comparison_body_layout.setSpacing(12)
-        comparison_layout.addWidget(self.comparison_body)
-        selectors = QHBoxLayout()
-        self.left_branch = QComboBox()
-        self.left_branch.setObjectName("comparison_left")
-        self.right_branch = QComboBox()
-        self.right_branch.setObjectName("comparison_right")
-        self.left_branch.setMinimumContentsLength(10)
-        self.right_branch.setMinimumContentsLength(10)
-        for name, combo in (("A", self.left_branch), ("B", self.right_branch)):
-            selectors.addWidget(create_label(name, "badge", wrap=False))
-            selectors.addWidget(combo, 1)
-            combo.currentIndexChanged.connect(self._update_comparison)
-        comparison_body_layout.addLayout(selectors)
-        self.comparison = QTableWidget(5, 3)
-        self.comparison.setObjectName("comparison_table")
-        self.comparison.setHorizontalHeaderLabels(["Показатель", "Ветка A", "Ветка B"])
-        self.comparison.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.comparison.verticalHeader().setVisible(False)
-        self.comparison.verticalHeader().setDefaultSectionSize(25)
-        self.comparison.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.comparison.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
-        self.comparison.setFixedHeight(160)
-        comparison_body_layout.addWidget(self.comparison)
-        self.comparison_body.setVisible(False)
-        self.comparison_toggle.toggled.connect(self._toggle_comparison)
-        layout.addWidget(comparison_panel)
-        self.footer = create_label(
-            "История сохраняется автоматически · "
-            "Риск — учебная шкала, а не реальная оценка безопасности.",
-            "muted",
+    def _add_page(self, page: QWidget) -> None:
+        # Каждому экрану доступна вертикальная прокрутка. Ограничиваем ширину
+        # чтения, но не фиксируем высоту русского текста или карточек решений.
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 8, 0, 8)
+        row.addStretch()
+        page.setMaximumWidth(1080)
+        row.addWidget(page, 1)
+        row.addStretch()
+        scroll = make_scrollable(container)
+        self.pages[page] = scroll
+        self.stack.addWidget(scroll)
+
+    def _show(self, page: QWidget, *, remember: bool = False) -> None:
+        if remember:
+            self.back_stack.append(self.current_page)
+        self.current_page = page
+        self.stack.setCurrentWidget(self.pages[page])
+        self.pages[page].verticalScrollBar().setValue(0)
+        self.back_button.setVisible(bool(self.back_stack))
+        self.menu_button.setVisible(page is not self.menu)
+        page.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def _back(self) -> None:
+        if self.back_stack:
+            self._show(self.back_stack.pop())
+
+    def _create_menu(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addStretch()
+        layout.addWidget(create_label("Каждое решение меняет историю", "storyTitle"))
+        layout.addWidget(
+            create_label(
+                "Учитесь распознавать киберугрозы, принимайте решения "
+                "и наблюдайте за их последствиями"
+            )
         )
-        layout.addWidget(self.footer)
-        self._refresh()
+        layout.addWidget(
+            create_label(
+                "Один сценарий · Несколько исходов · Можно вернуться и попробовать иначе", "muted"
+            )
+        )
+        self.start_button = action_button("Начать симуляцию", self.lab.scenario.title, primary=True)
+        self.start_button.setObjectName("start_simulation")
+        self.start_button.clicked.connect(self._start)
+        layout.addWidget(self.start_button)
+        self.resume_button = action_button("Продолжить прохождение", "Открыть сохранённый шаг")
+        self.resume_button.setObjectName("resume_simulation")
+        self.resume_button.clicked.connect(lambda: self._perform(self._display_active))
+        layout.addWidget(self.resume_button)
+        self.help_button = action_button("Как это работает", "Короткое интерактивное обучение")
+        self.help_button.clicked.connect(self._replay_tutorial)
+        layout.addWidget(self.help_button)
+        self.sessions_button = action_button("История прохождений")
+        self.sessions_button.clicked.connect(self._open_sessions)
+        layout.addWidget(self.sessions_button)
+        layout.addWidget(
+            create_label(
+                "Безопасная симуляция: письма, пароли и файлы вымышлены. "
+                "Ваш настоящий компьютер не затрагивается. Интернет и регистрация не нужны.",
+                "badge",
+            )
+        )
+        layout.addStretch()
+        return page
+
+    def show_menu(self) -> None:
+        self.back_stack.clear()
+        # Возврат к корню не стирает прогресс: важен весь набор снимков, не только active.
+        was_started = self.settings.value("last_session", "") == self.lab.session.id
+        self.resume_button.setVisible(was_started or len(self.lab.entries) > 1)
+        self._show(self.menu)
 
     def _perform(self, action: Callable[[], object]) -> None:
         try:
             action()
-            self._refresh()
         except (sqlite3.Error, ValueError, OSError) as error:
-            QMessageBox.critical(self, "Не удалось сохранить решение", str(error))
+            QMessageBox.critical(self, "Не удалось открыть или сохранить прохождение", str(error))
 
-    def _toggle_comparison(self, expanded: bool) -> None:
-        self.comparison_body.setVisible(expanded)
-        self.comparison_toggle.setText("Свернуть сравнение" if expanded else "Показать сравнение")
+    def _start(self) -> None:
+        if not self.settings.value("tutorial_completed", False, type=bool):
+            self.tutorial_starts_session = True
+            self.tutorial.reset()
+            self._show(self.tutorial, remember=True)
+        else:
+            self._perform(self._start_new_session)
+
+    def _replay_tutorial(self) -> None:
+        self.tutorial_starts_session = False
+        self.tutorial.reset()
+        self._show(self.tutorial, remember=True)
+
+    def _finish_tutorial(self) -> None:
+        self.settings.setValue("tutorial_completed", True)
+        self.settings.sync()
+        if self.tutorial_starts_session:
+            self._perform(self._start_new_session)
+        else:
+            self.show_menu()
+
+    def _start_new_session(self) -> None:
+        # LabSession уже создаёт пустую тренировку при первом запуске.
+        # Используем её, чтобы не заполнять историю лишними пустыми сессиями.
+        if len(self.lab.entries) > 1:
+            self.lab.new_session()
+        self.settings.remove("pending_feedback")
+        self._remember_session()
+        self._display_active()
+
+    def _remember_session(self) -> None:
+        self.settings.setValue("last_session", self.lab.session.id)
+        self.settings.sync()
 
     def _choose(self, choice_id: str) -> None:
-        self._perform(lambda: self.lab.choose(choice_id))
+        def save_choice() -> None:
+            # Сначала транзакция. Если запись не удалась, остаёмся на ситуации.
+            self.lab.choose(choice_id)
+            self.settings.setValue("pending_feedback", self.lab.active.id)
+            self._remember_session()
+            self._display_active()
 
-    def _history_selected(self) -> None:
-        selected = self.history.selectedItems()
-        if selected:
-            entry_id = selected[0].data(0, Qt.ItemDataRole.UserRole)
-            self._perform(lambda: self.lab.go_to(entry_id))
+        self._perform(save_choice)
+
+    def _display_active(self) -> None:
+        self.back_stack.clear()
+        active = self.lab.active
+        entries = self.lab.entries
+        self.computer.render(active.state)
+        if active.parent_id and self.settings.value("pending_feedback", "") == active.id:
+            before = self.lab.repository.entry(active.parent_id, self.lab.session.id)
+            self.consequence.render(before, active, terminal=self.lab.node.terminal)
+            self._show(self.consequence)
+        elif self.lab.node.terminal:
+            self.results.render(self.lab.scenario, entries, active)
+            self._show(self.results)
+        else:
+            self.situation.render(self.lab.scenario, entries, active)
+            self._show(self.situation)
+
+    def _continue_after_decision(self) -> None:
+        self.settings.remove("pending_feedback")
+        self.settings.sync()
+        self._perform(self._display_active)
+
+    def _open_computer(self) -> None:
+        self.computer.render(self.lab.active.state)
+        self._show(self.computer, remember=True)
+
+    def _open_decisions(self) -> None:
+        self.decisions.render(self.lab.scenario, self.lab.entries, self.lab.active)
+        self._show(self.decisions, remember=True)
+
+    def _go_to(self, entry_id: str) -> None:
+        def restore() -> None:
+            self.lab.go_to(entry_id)
+            self.settings.remove("pending_feedback")
+            self._remember_session()
+            self._display_active()
+
+        self._perform(restore)
+
+    def _try_alternative(self) -> None:
+        if self.lab.active.parent_id is not None:
+            self._go_to(self.lab.active.parent_id)
 
     def _return_to_start(self) -> None:
-        # Хранилище возвращает шаги в порядке создания: первый — корень истории.
-        root_entry = self.lab.entries[0]
-        self._perform(lambda: self.lab.go_to(root_entry.id))
+        self._go_to(self.lab.entries[0].id)
 
-    def _refresh(self) -> None:
-        """Перерисовать панели по одному и тому же активному снимку."""
-        entries = self.lab.entries
-        self.entries_by_id = {entry.id: entry for entry in entries}
-        active_entry = self.lab.active
-        self.story_title.setText(self.lab.node.title)
-        self.story_description.setText(self.lab.node.description)
-        self.stage_label.setText(
-            "ИТОГ ВЕТКИ · можно вернуться назад" if self.lab.node.terminal else "ВАШЕ РЕШЕНИЕ"
+    def _open_comparison(self) -> None:
+        def show_comparison() -> None:
+            sessions = list(reversed(self.lab.repository.sessions(self.lab.scenario.id)))
+            numbers = {session.id: index for index, session in enumerate(sessions, 1)}
+            entries = []
+            for session in sessions:
+                entries.extend(self.lab.repository.entries(session.id))
+            self.comparison.render(self.lab.scenario, entries, numbers, self.lab.active)
+            self._show(self.comparison, remember=True)
+
+        self._perform(show_comparison)
+
+    def _create_sessions_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addWidget(create_label("История прохождений", "storyTitle"))
+        layout.addWidget(
+            create_label(
+                "Все тренировки сохраняются автоматически. Выберите прохождение, "
+                "чтобы продолжить с его последнего выбранного шага."
+            )
         )
-        self._render_choices()
-        self._render_metrics(active_entry.state)
-        self.computer.render(active_entry.state)
-        self._render_history(entries)
-        self._render_selectors(entries)
-        if self.lab.node.terminal:
-            self.comparison_toggle.setChecked(True)
+        self.session_list = QListWidget()
+        self.session_list.setWordWrap(True)
+        self.session_list.setMinimumHeight(260)
+        self.session_list.itemDoubleClicked.connect(lambda _item: self._open_selected_session())
+        layout.addWidget(self.session_list)
+        self.empty_history = create_label("Пока нет решений. Начните первую симуляцию.", "badge")
+        layout.addWidget(self.empty_history)
+        self.open_session_button = action_button("Открыть прохождение", primary=True)
+        self.open_session_button.clicked.connect(self._open_selected_session)
+        layout.addWidget(self.open_session_button)
+        return page
 
-    def _render_choices(self) -> None:
-        """Заменить кнопки прошлого шага вариантами текущего узла сценария."""
-        while self.actions.count():
-            item = self.actions.takeAt(0)
-            widget = item.widget()
-            widget.setParent(None)
-            widget.deleteLater()
-        for choice in self.lab.node.choices:
-            button = QPushButton(f"{choice.title}\n{choice.hint}")
-            button.setObjectName(f"choice_{choice.id}")
-            button.setProperty("role", "choice")
-            button.setToolTip(choice.hint)
-            button.setMinimumHeight(60)
-            # Сохраняем id в аргументе lambda. Без этого все кнопки цикла
-            # ссылались бы на последнее значение переменной choice.
-            button.clicked.connect(
-                lambda _checked=False, choice_id=choice.id: self._choose(choice_id)
-            )
-            self.actions.addWidget(button)
-        if self.lab.node.terminal:
-            self.actions.addWidget(
-                create_label(
-                    "Выберите предыдущий шаг в истории слева, чтобы создать новую ветку.", "badge"
+    def _open_sessions(self) -> None:
+        def show_sessions() -> None:
+            self.session_list.clear()
+            sessions = list(reversed(self.lab.repository.sessions(self.lab.scenario.id)))
+            for number, session in reversed(list(enumerate(sessions, 1))):
+                entries = self.lab.repository.entries(session.id)
+                if len(entries) == 1:
+                    continue
+                active = self.lab.repository.entry(session.active_entry_id, session.id)
+                date = (
+                    datetime.fromisoformat(entries[0].created_at)
+                    .astimezone()
+                    .strftime("%d.%m.%Y %H:%M")
                 )
-            )
-
-    def _render_metrics(self, state: ComputerState) -> None:
-        for widget, value in zip(
-            self.metric_values,
-            (
-                f"{state.risk} / 100",
-                "Раскрыты" if state.credentials_exposed else "Защищены",
-                "Зашифрованы" if state.files_encrypted else "Доступны",
-                "Подключена" if state.network_connected else "Отключена",
-            ),
-            strict=True,
-        ):
-            widget.setText(value)
-
-    def _render_history(self, entries: list[HistoryEntry]) -> None:
-        # Выбор элемента порождает сигнал Qt. При восстановлении дерева сигнал
-        # временно отключён, иначе _history_selected снова вызвал бы _refresh.
-        self.history.blockSignals(True)
-        try:
-            self.history.clear()
-            items_by_entry_id: dict[str, QTreeWidgetItem] = {}
-            for index, entry in enumerate(entries, 1):
-                ending = " · итог" if self.lab.scenario.node(entry.node_id).terminal else ""
-                item = QTreeWidgetItem([f"{index:02d}  {entry.choice_title}{ending}"])
-                item.setData(0, Qt.ItemDataRole.UserRole, entry.id)
-                item.setToolTip(
-                    0,
-                    f"{self.lab.scenario.node(entry.node_id).title}\nРиск: {entry.state.risk}/100",
+                status = "Итог" if self.lab.scenario.node(active.node_id).terminal else "В процессе"
+                decisions = len(history_path(entries, active.id)) - 1
+                item = QListWidgetItem(
+                    f"Прохождение {number} · {date}\n"
+                    f"{status}: {self.lab.scenario.node(active.node_id).title}"
+                    f"\nРешений в текущем пути: {decisions} · Сохранённых шагов: {len(entries)}"
                 )
-                if entry.parent_id is None:
-                    self.history.addTopLevelItem(item)
-                else:
-                    # Родитель создан раньше ребёнка, поэтому уже есть в словаре.
-                    items_by_entry_id[entry.parent_id].addChild(item)
-                items_by_entry_id[entry.id] = item
-            self.history.expandAll()
-            self.history.setCurrentItem(items_by_entry_id[self.lab.active.id])
-            self.history_count.setText(f"Сохранено шагов: {len(entries)} · SQLite")
-        finally:
-            self.history.blockSignals(False)
+                item.setData(Qt.ItemDataRole.UserRole, session.id)
+                self.session_list.addItem(item)
+            self.empty_history.setVisible(self.session_list.count() == 0)
+            self.open_session_button.setEnabled(self.session_list.count() > 0)
+            self.session_list.setCurrentRow(0)
+            self._show(self.saved_sessions, remember=True)
 
-    def _render_selectors(self, entries: list[HistoryEntry]) -> None:
-        """Предложить другой сохранённый итог для сравнения с текущей веткой."""
-        previous_left = self.left_branch.currentData()
-        alternatives = [
-            entry
-            for entry in entries
-            if self.lab.scenario.node(entry.node_id).terminal and entry.id != self.lab.active.id
-        ]
-        left_id = previous_left if previous_left in self.entries_by_id else entries[0].id
-        if self.lab.node.terminal and alternatives:
-            left_id = alternatives[-1].id
-        for combo, selected_id in (
-            (self.left_branch, left_id),
-            (self.right_branch, self.lab.active.id),
-        ):
-            combo.blockSignals(True)
-            try:
-                combo.clear()
-                for index, entry in enumerate(entries, 1):
-                    title = self.lab.scenario.node(entry.node_id).title
-                    combo.addItem(f"{index:02d} · {entry.choice_title} → {title}", entry.id)
-                combo.setCurrentIndex(combo.findData(selected_id))
-            finally:
-                combo.blockSignals(False)
-        self._update_comparison()
+        self._perform(show_sessions)
 
-    def _update_comparison(self) -> None:
-        left_entry = self.entries_by_id.get(self.left_branch.currentData())
-        right_entry = self.entries_by_id.get(self.right_branch.currentData())
-        if left_entry is None or right_entry is None:
+    def _open_selected_session(self) -> None:
+        item = self.session_list.currentItem()
+        if item is None:
             return
-        for row_index, row in enumerate(compare_states(left_entry.state, right_entry.state)):
-            for column, text in enumerate((row.label, row.left, row.right)):
-                item = QTableWidgetItem(text)
-                if row.different:
-                    item.setBackground(QColor("#203e37"))
-                    item.setForeground(QColor("#a9f6d9"))
-                self.comparison.setItem(row_index, column, item)
-        self.computer.render_comparison(left_entry.state, right_entry.state)
+
+        def open_saved() -> None:
+            self.lab.open_session(item.data(Qt.ItemDataRole.UserRole))
+            self._remember_session()
+            self._display_active()
+
+        self._perform(open_saved)

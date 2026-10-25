@@ -3,7 +3,7 @@ import subprocess
 import sys
 
 import pytest
-from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtCore import QPoint, QSettings, QSize, Qt
 from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
 
 from cyberlab.session import LabSession
@@ -340,7 +340,13 @@ def test_failed_save_keeps_situation_and_does_not_show_fake_consequence(qtbot, w
 
 @pytest.mark.parametrize("size", [(1280, 720), (1366, 768), (853, 480), (640, 420)])
 def test_small_screen_text_wraps_and_controls_remain_reachable(qtbot, window, size):
-    window.resize(*size)
+    # Windows ограничивает нативное окно рабочим столом: рамка и панель задач
+    # тоже занимают место. Точные размеры отдельно проверяются через offscreen.
+    frame_size = window.frameGeometry().size() - window.size()
+    available_size = window.screen().availableGeometry().size() - frame_size
+    target_size = QSize(*size).boundedTo(available_size)
+    window.resize(target_size)
+    qtbot.waitUntil(lambda: window.size() == target_size)
     start(qtbot, window)
     # Проверяем реальные размеры виджетов после расчёта раскладки Qt.
     area = window.pages[window.situation]
@@ -371,8 +377,9 @@ def test_small_screen_text_wraps_and_controls_remain_reachable(qtbot, window, si
     assert window.comparison.conclusion.height() >= window.comparison.conclusion.heightForWidth(
         window.comparison.conclusion.width()
     )
-    assert window.width() == size[0]
-    assert window.height() == size[1]
+    assert window.size() == target_size
+    assert window.width() <= size[0]
+    assert window.height() <= size[1]
 
 
 def test_real_entrypoint_starts_event_loop_and_exits_cleanly(tmp_path):
@@ -397,7 +404,8 @@ raise SystemExit(main(['--database', sys.argv[1]]))
 """
     result = subprocess.run(
         [sys.executable, "-c", script, str(tmp_path / "launch.sqlite3"), str(tmp_path / "config")],
-        env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+        # В CI точка входа должна использовать тот же нативный плагин, что и GUI-тесты.
+        env=os.environ.copy(),
         text=True,
         capture_output=True,
         timeout=20,

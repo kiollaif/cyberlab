@@ -2,8 +2,8 @@ name: Checks
 
 on:
   push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -29,15 +29,45 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libegl1 libopengl0 libxcb-cursor0 libxkbcommon-x11-0
+          sudo apt-get install -y xvfb xauth libegl1 libgl1 libopengl0 libfontconfig1 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
+      - name: Qt startup on Linux / X11
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: xcb
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" uv run --locked python scripts/check_qt.py
       - name: Tests on Linux / X11
         if: runner.os == 'Linux'
         env:
           QT_QPA_PLATFORM: xcb
-        run: xvfb-run -a uv run --locked pytest
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" uv run --locked pytest --junitxml=test-results.xml
+      - name: Qt startup on Windows
+        if: runner.os == 'Windows'
+        env:
+          QT_QPA_PLATFORM: windows
+        run: uv run --locked python scripts/check_qt.py
       - name: Tests on Windows
         if: runner.os == 'Windows'
         env:
           QT_QPA_PLATFORM: windows
-        run: uv run --locked pytest
+        run: uv run --locked pytest --junitxml=test-results.xml
       - run: uv build
+      - name: Installed package offline / Linux
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: xcb
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" uv run --locked python scripts/check_package.py
+      - name: Installed package offline / Windows
+        if: runner.os == 'Windows'
+        env:
+          QT_QPA_PLATFORM: windows
+        run: uv run --locked python scripts/check_package.py
+      - name: Save test reports and packages
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-${{ matrix.os }}
+          path: |
+            test-results.xml
+            dist/*

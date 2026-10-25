@@ -9,6 +9,7 @@ dist/
 *.sqlite3
 *.sqlite3-*
 .coverage
+test-results.xml
 htmlcov/
 .idea/
 .vscode/

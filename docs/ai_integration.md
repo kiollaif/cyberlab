@@ -163,3 +163,18 @@ DeepSeek может отличаться. Ответы ИИ и статисти�
 Для защиты проекта можно объяснить: «Сценарий определяет результат и сохраняет
 снимок. ИИ получает ограниченную записку об уже произошедшем и объясняет её.
 Если ИИ недоступен, учебный алгоритм продолжает работать самостоятельно».
+
+## Изменённые файлы относительно main
+
+| Группа | Файлы |
+| --- | --- |
+| ИИ и интерфейс | `src/cyberlab/ai_client.py`, `ai_context.py`, `ai_panel.py`, `ui.py`, `review_pages.py` |
+| Зависимости и Git | `pyproject.toml`, `uv.lock`, `.gitignore` |
+| Тесты | `tests/test_ai_client.py`, `test_ai_context.py`, `test_ai_ui.py`, `test_offline.py`, `test_scaling.py`, `test_ui.py` |
+| CI и проверка пакета | `.github/workflows/checks.yml`, `scripts/check_qt.py`, `check_package.py`, `report_checks.py`, `smoke_offline.py` |
+| Документация | `README.md`, `STUDY_GUIDE.md`, `DEVELOPMENT.md`, `docs/ai_integration.md`, `PROJECT_AUDIT.md`, `architecture.md`, `validation.md` |
+
+Файлы `domain.py`, `scenarios.py`, `session.py`, `storage.py` и `mentor.py` сохранены
+без изменений относительно `main` (`bfef782`). ИИ добавлен отдельными модулями.
+Результаты проверок Windows/Linux, сборки и офлайн-режима приведены
+в [PROJECT_AUDIT.md](PROJECT_AUDIT.md).

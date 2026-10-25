@@ -124,7 +124,8 @@ class ComparisonPage(QWidget):
                 "и отдельные прохождения. Текущий шаг от этого не изменится."
             )
         )
-        self.include_steps = QCheckBox("Показать также промежуточные состояния")
+        self.include_steps = QCheckBox("Показать промежуточные шаги")
+        self.include_steps.setToolTip("Добавить к итогам сохранённые промежуточные состояния.")
         self.include_steps.toggled.connect(self._fill_selectors)
         layout.addWidget(self.include_steps, alignment=Qt.AlignmentFlag.AlignLeft)
         self.hint = create_label("", "badge")

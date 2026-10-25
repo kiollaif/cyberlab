@@ -37,7 +37,9 @@ def wait_until(predicate, message):
         assert monotonic() < deadline, (
             message, window.size().toTuple(),
             [(combo.width(), combo.minimumSizeHint().width())
-             for combo in window.comparison.selectors]
+             for combo in window.comparison.selectors],
+            window.comparison.include_steps.minimumSizeHint().width(),
+            window.pages[window.comparison].viewport().width(),
         )
 app = QApplication([])
 settings = QSettings(sys.argv[1], QSettings.Format.IniFormat)

@@ -137,6 +137,11 @@ class ComparisonPage(QWidget):
         routes_layout = QGridLayout(self.routes_body)
         routes_layout.setContentsMargins(0, 0, 0, 0)
         columns = QGridLayout()
+        self.card_grid = columns
+        self.route_grid = routes_layout
+        self.card_panels = []
+        self.route_panels = []
+        self._narrow = None
         for index, title in enumerate(("Первый вариант", "Второй вариант")):
             panel, contents = create_panel(title)
             combo = QComboBox()
@@ -160,6 +165,8 @@ class ComparisonPage(QWidget):
                 contents.addWidget(label)
             self.metric_labels.append(metrics)
             route_panel, route_layout = create_panel(f"{title}: решения по порядку")
+            self.card_panels.append(panel)
+            self.route_panels.append(route_panel)
             route = create_label()
             route_layout.addWidget(route)
             route_layout.addStretch()
@@ -181,6 +188,22 @@ class ComparisonPage(QWidget):
         layout.addWidget(self.routes_body)
         self.routes_body.hide()
         layout.addStretch()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        narrow = self.width() < 760
+        if narrow == self._narrow:
+            return
+        self._narrow = narrow
+        # На узком экране две карточки идут друг под другом: системный шрифт
+        # Windows может требовать больше места, чем два столбца по 280 пикселей.
+        for grid, panels in (
+            (self.card_grid, self.card_panels),
+            (self.route_grid, self.route_panels),
+        ):
+            grid.setColumnStretch(1, 0 if narrow else 1)
+            for index, panel in enumerate(panels):
+                grid.addWidget(panel, index if narrow else 0, 0 if narrow else index)
 
     def render(
         self,

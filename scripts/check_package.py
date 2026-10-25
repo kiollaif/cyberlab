@@ -7,6 +7,17 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 
+def run(arguments: list[str], *, cwd: Path | None = None) -> None:
+    result = subprocess.run(arguments, cwd=cwd, capture_output=True, text=True)
+    print(result.stdout, end="")
+    print(result.stderr, end="", file=sys.stderr)
+    if result.returncode:
+        raise RuntimeError(
+            f"{arguments[0]} exited with {result.returncode}:\n"
+            + (result.stdout + result.stderr)[-10000:]
+        )
+
+
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
     wheels = list((root / "dist").glob("cyberlab-*.whl"))
@@ -15,19 +26,53 @@ def main() -> None:
     with TemporaryDirectory(prefix="cyberlab-package-") as directory:
         workspace = Path(directory)
         environment = workspace / "venv"
-        subprocess.run(["uv", "venv", "--python", sys.executable, str(environment)], check=True)
+        run(["uv", "venv", "--python", sys.executable, str(environment)])
         python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        subprocess.run(
-            ["uv", "pip", "install", "--offline", "--python", str(python), str(wheels[0])],
-            check=True,
+        # uv sync использует адреса wheel из uv.lock и может не кэшировать индекс PyPI.
+        # pylock сохраняет адреса и хеши: офлайн-установка не ищет версии в индексе.
+        locked_dependencies = workspace / "pylock.toml"
+        run(
+            [
+                "uv",
+                "--quiet",
+                "export",
+                "--locked",
+                "--offline",
+                "--no-dev",
+                "--no-emit-project",
+                "--format",
+                "pylock.toml",
+                "--output-file",
+                str(locked_dependencies),
+            ],
+            cwd=root,
         )
-        subprocess.run([str(python), "-m", "cyberlab", "--help"], cwd=workspace, check=True)
-        subprocess.run(
+        run(["uv", "pip", "sync", "--offline", "--python", str(python), str(locked_dependencies)])
+        run(
+            [
+                "uv",
+                "pip",
+                "install",
+                "--offline",
+                "--no-deps",
+                "--python",
+                str(python),
+                str(wheels[0]),
+            ]
+        )
+        run(["uv", "pip", "check", "--python", str(python)])
+        run([str(python), "-m", "cyberlab", "--help"], cwd=workspace)
+        run(
             [str(python), str(root / "scripts" / "smoke_offline.py"), "--installed"],
             cwd=workspace,
-            check=True,
         )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if os.environ.get("GITHUB_ACTIONS"):
+            message = str(error).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            print(f"::error title=Installed package::{message}")
+        raise

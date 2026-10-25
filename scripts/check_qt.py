@@ -33,8 +33,18 @@ print('OS:', platform.platform())
 print('Qt:', qVersion(), 'platform:', app.platformName())
 print('Available desktop:', app.primaryScreen().availableGeometry().getRect())
 """
-    subprocess.run([sys.executable, "-c", probe], check=True)
+    result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
+    print(result.stdout, end="")
+    if result.returncode:
+        raise RuntimeError(f"Qt probe exited with {result.returncode}:\n{result.stderr}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as error:
+        if os.environ.get("GITHUB_ACTIONS"):
+            # Аннотация доступна на странице задания даже без скачивания логов.
+            message = str(error).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+            print(f"::error title=Qt startup::{message}")
+        raise

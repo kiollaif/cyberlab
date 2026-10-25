@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cyberlab.ai_context import build_context
+from cyberlab.ai_panel import AiMentorPanel
 from cyberlab.learning import history_path
 from cyberlab.review_pages import ComparisonPage, DecisionsPage
 from cyberlab.session import LabSession
@@ -38,6 +40,7 @@ class MainWindow(QMainWindow):
         self.back_stack: list[QWidget] = []
         self.pages: dict[QWidget, QWidget] = {}
         self.tutorial_starts_session = False
+        self._close_when_ai_finishes = False
         self.setWindowTitle("CYBERLAB — лаборатория решений")
         # Qt считает размеры в логических пикселях: при масштабе 150% их меньше.
         self.setMinimumSize(600, 400)
@@ -72,6 +75,8 @@ class MainWindow(QMainWindow):
         self.comparison = ComparisonPage()
         self.tutorial = TutorialPage()
         self.computer = VirtualComputer()
+        self.ai_mentor = AiMentorPanel()
+        self.ai_mentor.idle.connect(self._finish_pending_close)
         self.computer.setMinimumHeight(450)
         self.saved_sessions = self._create_sessions_page()
         for page in (
@@ -84,6 +89,7 @@ class MainWindow(QMainWindow):
             self.tutorial,
             self.computer,
             self.saved_sessions,
+            self.ai_mentor,
         ):
             self._add_page(page)
         self.situation.choice_selected.connect(self._choose)
@@ -103,6 +109,14 @@ class MainWindow(QMainWindow):
         self.decisions.compare_requested.connect(self._open_comparison)
         self.tutorial.finished.connect(self._finish_tutorial)
         self.comparison.states_selected.connect(self.computer.render_comparison)
+        self.comparison.states_selected.connect(self._comparison_context_changed)
+        self.ai_buttons = {}
+        for page in (self.menu, self.situation, self.consequence, self.results, self.comparison):
+            button = action_button("ИИ-наставник", "DeepSeek по запросу или локальные объяснения")
+            button.setObjectName("open_ai_mentor")
+            button.clicked.connect(self._open_ai)
+            page.layout().addWidget(button)
+            self.ai_buttons[page] = button
         self.show_menu()
 
     def _add_page(self, page: QWidget) -> None:
@@ -234,6 +248,7 @@ class MainWindow(QMainWindow):
         self.back_stack.clear()
         active = self.lab.active
         entries = self.lab.entries
+        self.ai_mentor.set_context(build_context(self.lab.scenario, entries, active))
         self.computer.render(active.state)
         if active.parent_id and self.settings.value("pending_feedback", "") == active.id:
             before = self.lab.repository.entry(active.parent_id, self.lab.session.id)
@@ -254,6 +269,40 @@ class MainWindow(QMainWindow):
     def _open_computer(self) -> None:
         self.computer.render(self.lab.active.state)
         self._show(self.computer, remember=True)
+
+    def _open_ai(self) -> None:
+        if self.current_page is self.comparison:
+            self._comparison_context_changed()
+        else:
+            self.ai_mentor.set_context(
+                build_context(self.lab.scenario, self.lab.entries, self.lab.active)
+            )
+        self._show(self.ai_mentor, remember=True)
+
+    def _comparison_context_changed(self, *_states) -> None:
+        selected = [combo.currentData() for combo in self.comparison.selectors]
+        if any(entry_id is None for entry_id in selected):
+            return
+        pair = tuple(self.comparison.entries_by_id[entry_id] for entry_id in selected)
+        self.ai_mentor.set_context(
+            build_context(
+                self.lab.scenario, self.comparison.entries, self.lab.active, comparison=pair
+            )
+        )
+
+    def closeEvent(self, event) -> None:
+        if self.ai_mentor.busy:
+            # Не уничтожаем работающий QThread. Закрытие завершится асинхронно
+            # после ответа или тайм-аута; цикл Qt и сценарий не блокируются.
+            self._close_when_ai_finishes = True
+            self.ai_mentor.cancel_display()
+            event.ignore()
+            return
+        super().closeEvent(event)
+
+    def _finish_pending_close(self) -> None:
+        if self._close_when_ai_finishes:
+            self.close()
 
     def _open_decisions(self) -> None:
         self.decisions.render(self.lab.scenario, self.lab.entries, self.lab.active)

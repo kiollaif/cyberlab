@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
     QHBoxLayout,
+    QSizePolicy,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -141,6 +142,10 @@ class ComparisonPage(QWidget):
             combo = QComboBox()
             combo.setObjectName(f"comparison_{'left' if index == 0 else 'right'}")
             combo.setMinimumContentsLength(15)
+            # У Windows минимальная ширина списка зависит от системного шрифта.
+            # Разрешаем двум спискам сжиматься вместе с карточками; полный текст
+            # выбранного пункта остаётся в подсказке и в разборе пути.
+            combo.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             combo.setSizeAdjustPolicy(
                 QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
             )

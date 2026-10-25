@@ -34,7 +34,11 @@ def wait_until(predicate, message):
         QTest.qWait(10)
         if predicate():
             return
-        assert monotonic() < deadline, message
+        assert monotonic() < deadline, (
+            message, window.size().toTuple(),
+            [(combo.width(), combo.minimumSizeHint().width())
+             for combo in window.comparison.selectors]
+        )
 app = QApplication([])
 settings = QSettings(sys.argv[1], QSettings.Format.IniFormat)
 settings.setValue('tutorial_completed', True)

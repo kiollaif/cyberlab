@@ -45,6 +45,10 @@ def test_sidebar_preserves_unread_consequence_and_all_snapshots(qtbot, workspace
         assert window.lab.active == active
         assert window.lab.entries == before
         assert not window.ai_mentor.busy
+        depth = len(window.back_stack)
+        qtbot.mouseClick(window.navigation.buttons[section], Qt.MouseButton.LeftButton)
+        assert len(window.back_stack) == depth
+        assert window.navigation.buttons[section].isChecked()
     window.consequence.continue_button.click()
     assert window.current_page is window.situation
     assert window.lab.active == active

@@ -144,6 +144,9 @@ class MainWindow(QMainWindow):
             self.navigation.set_compact(self.width() < 980)
 
     def _navigate(self, section: str) -> None:
+        if section == getattr(self, "_current_section", None):
+            self.navigation.select(section)
+            return
         actions = {
             "home": self.show_menu,
             "simulation": self._resume,
@@ -195,6 +198,7 @@ class MainWindow(QMainWindow):
             self.tutorial: "help",
         }
         section = sections[page]
+        self._current_section = section
         self.navigation.select(section)
         self.breadcrumb.setText(f"Рабочее пространство  /  {self.navigation.titles[section]}")
         page.setFocus(Qt.FocusReason.OtherFocusReason)

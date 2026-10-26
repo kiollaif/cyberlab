@@ -26,17 +26,16 @@ QFrame#scenarioRow { border-top: 1px solid #303037; border-bottom: 1px solid #30
 QFrame#comparisonColumn { background: #1e1e23; border: none; border-radius: 5px; }
 QFrame#resultRow { border: none; border-bottom: 1px solid #2b2b31; }
 QPushButton { background: #25252c; border: 1px solid #36363f; border-radius: 5px;
-              padding: 0; text-align: left; }
+              padding: 6px 11px; text-align: left; }
 QPushButton:hover { background: #2d2d35; border-color: #45454f; }
 QPushButton:focus { border-color: #a6a4d9; }
-QPushButton[role="primary"] { background: #aaa8df; border: 1px solid #aaa8df; }
-QLabel#buttonTitle[primary="true"] { color: #17161f; }
+QPushButton[role="primary"] { background: #aaa8df; color: #17161f; border: 1px solid #aaa8df; }
 QLabel#buttonTitle:disabled { color: #63636d; }
 QPushButton[role="primary"]:hover { background: #bab8eb; border-color: #bab8eb; }
 QPushButton[role="link"] { background: transparent; border: 1px solid transparent; }
 QPushButton[role="link"]:hover { background: #232329; }
 QPushButton[role="decision"] { background: transparent; border: none;
-                              border-bottom: 1px solid #303037; border-radius: 0; }
+                              border-bottom: 1px solid #303037; border-radius: 0; padding: 0; }
 QPushButton[role="decision"]:hover { background: #222228; }
 QPushButton[role="decision"]:focus { background: #26252f; border-bottom-color: #aaa8df; }
 QPushButton[role="nav"] { background: transparent; border: none; color: #9999a5;

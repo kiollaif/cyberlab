@@ -355,6 +355,9 @@ def test_small_screen_text_wraps_and_controls_remain_reachable(qtbot, window, si
     qtbot.waitUntil(lambda: area.viewport().width() > 0)
     assert area.widget().width() <= area.viewport().width()
     for button in window.situation.findChildren(QPushButton):
+        if button.text():
+            assert button.width() >= button.minimumSizeHint().width()
+            assert button.height() >= button.minimumSizeHint().height()
         for label in button.findChildren(QLabel):
             qtbot.waitUntil(
                 lambda label=label: label.height() >= label.heightForWidth(label.width())

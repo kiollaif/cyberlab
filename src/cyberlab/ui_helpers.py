@@ -1,7 +1,6 @@
 """Общие надписи, компактные действия и строки выбора."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -49,26 +48,14 @@ def make_scrollable(widget: QWidget) -> QScrollArea:
 
 def action_button(title: str, hint: str = "", *, primary: bool = False) -> QPushButton:
     """Короткое действие. Второстепенное пояснение доступно при наведении."""
-    button = QPushButton()
+    button = QPushButton(title)
     button.setAccessibleName(title)
     button.setProperty("role", "primary" if primary else "secondary")
-    layout = QVBoxLayout(button)
     button.setToolTip(hint)
-    layout.setContentsMargins(11, 7, 11, 7)
-    layout.setSpacing(0)
-    title_label = create_label(title, "buttonTitle")
-    title_label.setProperty("primary", primary)
-    title_font = QFont("Segoe UI")
-    title_font.setPixelSize(13)
-    title_font.setWeight(QFont.Weight.Medium)
-    title_label.setFont(title_font)
-    title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-    layout.addWidget(title_label)
-    button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
-    # До включения в окно виджет ещё не наследует таблицу стилей. Считаем ширину
-    # по тому же шрифту, который будет у подписи после показа, иначе текст переносится.
-    button.setMinimumWidth(min(260, QFontMetrics(title_font).horizontalAdvance(title) + 28))
-    button.setMinimumHeight(max(32, QFontMetrics(title_font).height() + 16))
+    # Штатный QPushButton сам учитывает метрики шрифта и DPI платформы.
+    # Вложенные надписи нужны только строкам выбора с двумя уровнями текста.
+    button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    button.setMinimumHeight(32)
     return button
 
 

@@ -59,6 +59,9 @@ for choice in ('open_link', 'submit', 'ignore'):
     area = window.pages[window.current_page]
     wait_until(lambda: area.widget().width() <= area.viewport().width(), 'Situation width')
     for button in window.situation.findChildren(QPushButton):
+        if button.text():
+            wait_until(lambda: button.width() >= button.minimumSizeHint().width(), button.text())
+            wait_until(lambda: button.height() >= button.minimumSizeHint().height(), button.text())
         for label in button.findChildren(QLabel):
             wait_until(lambda: label.height() >= label.heightForWidth(label.width()), label.text())
     window.situation.findChild(QPushButton, 'choice_' + choice).click()

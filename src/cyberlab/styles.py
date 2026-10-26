@@ -28,7 +28,7 @@ QFrame#resultRow { border: none; border-bottom: 1px solid #2b2b31; }
 QPushButton { background: #25252c; border: 1px solid #36363f; border-radius: 5px;
               padding: 0; text-align: left; }
 QPushButton:hover { background: #2d2d35; border-color: #45454f; }
-QPushButton:focus-visible { border: 1px solid #a6a4d9; }
+QPushButton:focus { border-color: #a6a4d9; }
 QPushButton[role="primary"] { background: #aaa8df; border: 1px solid #aaa8df; }
 QLabel#buttonTitle[primary="true"] { color: #17161f; }
 QLabel#buttonTitle:disabled { color: #63636d; }

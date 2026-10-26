@@ -63,7 +63,7 @@ def test_overview_only_offers_primary_start_and_optional_resume(workspace):
 def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
     window = workspace
     window.resize(*size)
-    qtbot.waitUntil(lambda: window.navigation.compact == (size[0] < 980))
+    qtbot.waitUntil(lambda: window.navigation.compact == (window.width() < 980))
     for name in (
         "home",
         "simulation",
@@ -82,4 +82,4 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
         area = window.pages[page]
         qtbot.waitUntil(lambda area=area: area.widget().width() <= area.viewport().width())
         assert page.isVisible()
-    assert window.navigation.width() == (60 if size[0] < 980 else 202)
+    assert window.navigation.width() == (60 if window.width() < 980 else 202)

@@ -28,7 +28,11 @@ def main() -> None:
                 title = case.get("name", "pytest")
                 details = (element.text or element.get("message", ""))[:12000]
                 summary += f"\n### {title}\n```text\n{details}\n```\n"
-                message = details.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                # В аннотации GitHub ограничивает длину. Конец traceback содержит
+                # само нарушение, а начало нередко занято исходником GUI-проверки.
+                message = (
+                    details[-3500:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                )
                 print(f"::error title={title}::{message}")
     print(summary)
     destination = os.environ.get("GITHUB_STEP_SUMMARY")

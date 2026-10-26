@@ -68,7 +68,7 @@ def action_button(title: str, hint: str = "", *, primary: bool = False) -> QPush
     # До включения в окно виджет ещё не наследует таблицу стилей. Считаем ширину
     # по тому же шрифту, который будет у подписи после показа, иначе текст переносится.
     button.setMinimumWidth(min(260, QFontMetrics(title_font).horizontalAdvance(title) + 28))
-    button.setMinimumHeight(32)
+    button.setMinimumHeight(max(32, QFontMetrics(title_font).height() + 16))
     return button
 
 

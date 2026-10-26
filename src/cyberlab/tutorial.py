@@ -1,9 +1,9 @@
 """Пять коротких шагов обучения. Демонстрация не создаёт решений в SQLite."""
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
-from cyberlab.ui_helpers import action_button, create_label, create_panel
+from cyberlab.ui_helpers import action_button, create_label, create_panel, link_button
 
 LESSONS = (
     (
@@ -14,13 +14,13 @@ LESSONS = (
     ),
     (
         "Сначала прочитайте ситуацию",
-        "На экране будет одна текущая задача. Сверху — название и число принятых решений. "
+        "На экране будет одна текущая задача. Сверху — название этапа и прогресс. "
         "Сначала узнайте, что произошло, затем выбирайте действие.",
         "Пример ситуации: пришло сообщение от незнакомого отправителя.",
     ),
     (
         "Выберите действие",
-        "Крупные кнопки под ситуацией — ваши варианты. Попробуйте учебную кнопку ниже. "
+        "Строки под ситуацией — ваши варианты. Попробуйте учебное действие ниже. "
         "Этот пример не влияет на прохождение.",
         "Одно нажатие — одно решение. Следующий выбор появится после объяснения.",
     ),
@@ -33,9 +33,9 @@ LESSONS = (
     ),
     (
         "Попробуйте иначе и сравните",
-        "Откройте «Ваши решения» и нажмите «Попробовать другой вариант». Вы вернётесь "
+        "Откройте «Ваши решения» слева и нажмите «На шаг назад». Вы вернётесь "
         "к выбору перед последним действием. Любой более ранний шаг доступен в дереве. "
-        "После завершения откройте «Сравнить прохождения».",
+        "Для сравнения откройте раздел «Сравнение».",
         "Начало\n├─ Первый выбор → сохранённый результат\n└─ Другой выбор → новый результат\n"
         "Обе ветки сохраняются даже после закрытия программы.",
     ),
@@ -49,21 +49,24 @@ class TutorialPage(QWidget):
         super().__init__()
         self.step = 0
         layout = QVBoxLayout(self)
-        self.progress = create_label("", "badge")
+        layout.setSpacing(20)
+        self.progress = create_label("", "eyebrow")
         self.title = create_label("", "storyTitle")
-        self.description = create_label()
+        self.description = create_label("", "muted")
         layout.addWidget(self.progress)
         layout.addWidget(self.title)
         layout.addWidget(self.description)
         panel, contents = create_panel("Так это выглядит")
+        panel.setObjectName("scenarioRow")
+        contents.setContentsMargins(0, 18, 0, 18)
         self.example = create_label()
         contents.addWidget(self.example)
-        self.practice_button = action_button("Посмотреть сведения об отправителе", primary=True)
+        self.practice_button = action_button("Проверить отправителя")
         self.practice_button.clicked.connect(self._practice)
-        contents.addWidget(self.practice_button)
+        contents.addWidget(self.practice_button, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(panel)
         controls = QHBoxLayout()
-        self.previous_button = action_button("Назад")
+        self.previous_button = link_button("Назад")
         self.previous_button.clicked.connect(lambda: self._move(-1))
         self.next_button = action_button("Далее", primary=True)
         self.next_button.clicked.connect(lambda: self._move(1))
@@ -72,10 +75,11 @@ class TutorialPage(QWidget):
         controls.addWidget(self.previous_button)
         controls.addWidget(self.next_button)
         controls.addWidget(self.finish_button)
-        layout.addLayout(controls)
-        self.skip_button = action_button("Пропустить обучение")
+        controls.addStretch()
+        self.skip_button = link_button("Пропустить обучение")
         self.skip_button.clicked.connect(self.finished.emit)
-        layout.addWidget(self.skip_button)
+        controls.addWidget(self.skip_button)
+        layout.addLayout(controls)
         layout.addStretch()
         self.render()
 

@@ -19,7 +19,7 @@ from cyberlab.learning import history_path, state_summary
 from cyberlab.mentor import explain_decision
 from cyberlab.simulation_pages import StateOverview
 from cyberlab.storage import HistoryEntry
-from cyberlab.ui_helpers import action_button, create_label, create_panel
+from cyberlab.ui_helpers import action_button, create_label, create_panel, link_button
 
 
 class DecisionsPage(QWidget):
@@ -31,16 +31,23 @@ class DecisionsPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        layout.setSpacing(14)
         layout.addWidget(create_label("Ваши решения", "storyTitle"))
         layout.addWidget(
             create_label(
-                "Вы можете вернуться к предыдущему выбору и попробовать другой вариант. "
-                "Старый результат сохранится."
+                "Откройте прошлый шаг и попробуйте другой выбор. Старые ветки сохранятся.", "muted"
             )
         )
-        self.alternative_button = action_button("Попробовать другой вариант", primary=True)
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        self.alternative_button = action_button("На шаг назад")
         self.alternative_button.clicked.connect(self.alternative_requested.emit)
-        layout.addWidget(self.alternative_button)
+        toolbar.addWidget(self.alternative_button)
+        self.root_button = link_button("В начало сценария")
+        self.root_button.clicked.connect(self.root_requested.emit)
+        toolbar.addWidget(self.root_button)
+        toolbar.addStretch()
+        layout.addLayout(toolbar)
         self.tree = QTreeWidget()
         self.tree.setObjectName("decision_history")
         self.tree.setHeaderHidden(True)
@@ -50,19 +57,11 @@ class DecisionsPage(QWidget):
         self.tree.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tree.currentItemChanged.connect(self._selection_changed)
         layout.addWidget(self.tree, 1)
-        self.preview = create_label("", "badge")
+        self.preview = create_label("", "muted")
         layout.addWidget(self.preview)
-        self.open_button = action_button("Вернуться к выбранному шагу")
+        self.open_button = action_button("Открыть выбранный шаг", primary=True)
         self.open_button.clicked.connect(self._open_selected)
-        layout.addWidget(self.open_button)
-        controls = QHBoxLayout()
-        self.root_button = action_button("К началу сценария")
-        self.root_button.clicked.connect(self.root_requested.emit)
-        self.compare_button = action_button("Сравнить сохранённые шаги")
-        self.compare_button.clicked.connect(self.compare_requested.emit)
-        controls.addWidget(self.root_button)
-        controls.addWidget(self.compare_button)
-        layout.addLayout(controls)
+        layout.addWidget(self.open_button, alignment=Qt.AlignmentFlag.AlignLeft)
 
     def render(self, scenario: Scenario, entries: list[HistoryEntry], active: HistoryEntry) -> None:
         self.entries_by_id = {entry.id: entry for entry in entries}
@@ -101,8 +100,7 @@ class DecisionsPage(QWidget):
             return
         entry = self.entries_by_id[item.data(0, Qt.ItemDataRole.UserRole)]
         self.preview.setText(
-            f"{self.scenario.node(entry.node_id).title}\n{state_summary(entry.state)}\n"
-            "Нажмите «Вернуться к выбранному шагу», чтобы открыть этот снимок."
+            f"{self.scenario.node(entry.node_id).title}\n{state_summary(entry.state)}"
         )
 
     def _open_selected(self) -> None:
@@ -117,18 +115,16 @@ class ComparisonPage(QWidget):
     def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
+        layout.setSpacing(16)
         layout.addWidget(create_label("Сравнение результатов", "storyTitle"))
         layout.addWidget(
-            create_label(
-                "Выберите два сохранённых варианта. Здесь можно сравнить и разные ветки, "
-                "и отдельные прохождения. Текущий шаг от этого не изменится."
-            )
+            create_label("Два сохранённых пути. Просмотр не меняет текущий шаг.", "muted")
         )
         self.include_steps = QCheckBox("Показать промежуточные шаги")
         self.include_steps.setToolTip("Добавить к итогам сохранённые промежуточные состояния.")
         self.include_steps.toggled.connect(self._fill_selectors)
         layout.addWidget(self.include_steps, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.hint = create_label("", "badge")
+        self.hint = create_label("", "muted")
         layout.addWidget(self.hint)
         self.selectors = []
         self.overviews = []
@@ -145,6 +141,9 @@ class ComparisonPage(QWidget):
         self._narrow = None
         for index, title in enumerate(("Первый вариант", "Второй вариант")):
             panel, contents = create_panel(title)
+            panel.setObjectName("comparisonColumn")
+            contents.setContentsMargins(16, 16, 16, 16)
+            contents.setSpacing(10)
             combo = QComboBox()
             combo.setObjectName(f"comparison_{'left' if index == 0 else 'right'}")
             combo.setMinimumContentsLength(15)
@@ -178,14 +177,14 @@ class ComparisonPage(QWidget):
             columns.addWidget(panel, 0, index)
             columns.setColumnStretch(index, 1)
         layout.addLayout(columns)
-        self.divergence = create_label("", "heading")
-        self.conclusion = create_label("", "badge")
+        self.divergence = create_label()
+        self.conclusion = create_label("", "muted")
         layout.addWidget(self.divergence)
         layout.addWidget(self.conclusion)
-        self.details_toggle = action_button("Показать решения и объяснения")
+        self.details_toggle = link_button("Разбор решений")
         self.details_toggle.setCheckable(True)
         self.details_toggle.toggled.connect(self.routes_body.setVisible)
-        layout.addWidget(self.details_toggle)
+        layout.addWidget(self.details_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.routes_body)
         self.routes_body.hide()
         layout.addStretch()
@@ -248,12 +247,12 @@ class ComparisonPage(QWidget):
             combo.setCurrentIndex(max(0, combo.findData(defaults[index])))
             combo.blockSignals(False)
         self.hint.setText(
-            "Сохранён пока один результат. Измените решение и завершите другую ветку "
-            "или включите промежуточные состояния."
+            "Сохранён пока один результат. Попробуйте другой выбор или включите промежуточные шаги."
             if len(available) == 1
             else "Различия отмечены словом «Отличается» и цветом. "
             "Одинаковый риск не означает одинаковый путь."
         )
+        self.hint.setVisible(len(available) == 1)
         self._update_comparison()
 
     def _update_comparison(self) -> None:
@@ -268,8 +267,9 @@ class ComparisonPage(QWidget):
             self.selectors[column].setToolTip(self.selectors[column].currentText())
             for label, row in zip(self.metric_labels[column], rows, strict=True):
                 value = row.left if column == 0 else row.right
-                label.setText(f"{row.label}: {value}" + (" · Отличается" if row.different else ""))
-                label.setStyleSheet("color: #efc18e;" if row.different else "")
+                label.setText(f"{row.label}: {value}" + ("  ≠" if row.different else ""))
+                label.setToolTip("Показатель отличается между вариантами" if row.different else "")
+                label.setStyleSheet("color: #dedbea;" if row.different else "color: #92929d;")
             steps = []
             path = paths[column]
             for before, after in zip(path, path[1:], strict=False):
@@ -281,7 +281,7 @@ class ComparisonPage(QWidget):
             self.routes[column].setText("\n\n".join(steps) or "Начало: решений ещё нет.")
         self.divergence.setText(self._describe_divergence(paths[0], paths[1]))
         self.conclusion.setText(
-            f"В первом случае: {state_summary(left.state)}\n\n"
+            f"В первом случае: {state_summary(left.state)}\n"
             f"Во втором случае: {state_summary(right.state)}"
         )
         self.states_selected.emit(left.state, right.state)
@@ -290,11 +290,7 @@ class ComparisonPage(QWidget):
     def _describe_divergence(left: list[HistoryEntry], right: list[HistoryEntry]) -> str:
         for first, second in zip(left[1:], right[1:], strict=False):
             if first.choice_id != second.choice_id:
-                return (
-                    f"Пути разошлись при выборе: «{first.choice_title}» в первом варианте "
-                    f"и «{second.choice_title}» во втором. "
-                    "Откройте разбор решений, чтобы увидеть дальнейшие шаги."
-                )
+                return f"Пути разошлись: «{first.choice_title}» / «{second.choice_title}»."
         if len(left) != len(right):
             return "Один путь продолжает другой: сравниваются разные этапы, а не два разных выбора."
         return "Последовательности решений совпадают. Можно выбрать другой сохранённый вариант."

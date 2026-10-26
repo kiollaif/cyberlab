@@ -1,11 +1,11 @@
 """Панель ИИ-наставника. Поток получает копию контекста, а не доступ к LabSession."""
 
-from PySide6.QtCore import QThread, Signal
-from PySide6.QtWidgets import QPlainTextEdit, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtWidgets import QHBoxLayout, QPlainTextEdit, QProgressBar, QVBoxLayout, QWidget
 
 from cyberlab.ai_client import MAX_QUESTION_CHARS, DeepSeekClient, MentorReply
 from cyberlab.ai_context import MentorContext
-from cyberlab.ui_helpers import action_button, create_label
+from cyberlab.ui_helpers import action_button, create_label, link_button
 
 
 class MentorRequest(QThread):
@@ -39,27 +39,47 @@ class AiMentorPanel(QWidget):
         self.worker: MentorRequest | None = None
         self.total_tokens = 0
         layout = QVBoxLayout(self)
-        layout.addWidget(create_label("ИИ-наставник", "storyTitle"))
-        self.mode = create_label("Локальный наставник — офлайн", "badge")
-        layout.addWidget(self.mode)
+        layout.setSpacing(14)
+        heading = QHBoxLayout()
+        heading.addWidget(create_label("ИИ-наставник", "storyTitle"), 1)
+        self.mode = create_label("Локальный наставник — офлайн", "muted")
+        self.mode.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        heading.addWidget(self.mode, 1)
+        layout.addLayout(heading)
         layout.addWidget(
             create_label(
-                "Онлайн-запрос отправляет текущую учебную ситуацию и ваш вопрос в DeepSeek. "
-                "Не вводите настоящие пароли, ключи и личные данные. "
-                "Ответы ИИ могут содержать ошибки.",
+                "В DeepSeek отправляются учебная ситуация и вопрос. "
+                "Не вводите реальные пароли и личные данные. ИИ может ошибаться.",
                 "muted",
             )
         )
+        self.answer = QPlainTextEdit()
+        self.answer.setProperty("role", "answer")
+        self.answer.setReadOnly(True)
+        self.answer.setAcceptDrops(False)
+        self.answer.setMinimumHeight(220)
+        layout.addWidget(self.answer, 1)
+        tools = QHBoxLayout()
+        tools.setSpacing(4)
+        self.decision_button = link_button("Объяснить выбор")
+        self.analysis_button = link_button("Разобрать ошибки")
+        self.compare_button = link_button("Сравнить варианты")
+        for button in (self.decision_button, self.analysis_button, self.compare_button):
+            tools.addWidget(button)
+        tools.addStretch()
+        layout.addLayout(tools)
         self.question = QPlainTextEdit()
-        self.question.setPlaceholderText("Например: по каким признакам можно заметить фишинг?")
+        self.question.setPlaceholderText("Спросите о текущей ситуации…")
         self.question.setAcceptDrops(False)
-        self.question.setMaximumHeight(100)
+        self.question.setFixedHeight(76)
         self.question.textChanged.connect(self._limit_question)
         layout.addWidget(self.question)
+        send_row = QHBoxLayout()
+        send_row.addWidget(create_label("До 1000 символов", "caption"))
+        send_row.addStretch()
         self.ask_button = action_button("Спросить ИИ", primary=True)
-        self.decision_button = action_button("Объяснить моё решение")
-        self.analysis_button = action_button("Проанализировать ошибки")
-        self.compare_button = action_button("Сравнить выбранные варианты")
+        send_row.addWidget(self.ask_button)
+        layout.addLayout(send_row)
         self.buttons = [
             self.ask_button,
             self.decision_button,
@@ -70,19 +90,16 @@ class AiMentorPanel(QWidget):
             self.buttons, ("question", "decision", "analysis", "comparison"), strict=True
         ):
             button.clicked.connect(lambda _checked=False, task=task: self.ask(task))
-            layout.addWidget(button)
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
+        self.progress.setFixedHeight(2)
         self.progress.hide()
         layout.addWidget(self.progress)
-        self.status = create_label("Запрос выполняется только после нажатия кнопки.", "muted")
+        self.status = create_label("", "muted")
+        self.status.hide()
         layout.addWidget(self.status)
-        self.answer = QPlainTextEdit()
-        self.answer.setReadOnly(True)
-        self.answer.setAcceptDrops(False)
-        self.answer.setMinimumHeight(180)
-        layout.addWidget(self.answer)
-        self.usage = create_label("Статистика токенов пока не получена.", "muted")
+        self.usage = create_label("", "caption")
+        self.usage.hide()
         layout.addWidget(self.usage)
         self._enable_buttons()
 
@@ -96,10 +113,9 @@ class AiMentorPanel(QWidget):
         if changed:
             self.mode.setText("Локальный наставник — офлайн")
             self.answer.setPlainText(context.local_state)
-            self.status.setText("Ситуация обновлена. Новый запрос можно сделать по кнопке.")
-            self.usage.setText(
-                f"Получено токенов за сеанс: {self.total_tokens}. Новый ответ ещё не получен."
-            )
+            self.status.hide()
+            self.usage.setText(f"Токенов за сеанс: {self.total_tokens}.")
+            self.usage.setVisible(self.total_tokens > 0)
         self._enable_buttons()
 
     def _limit_question(self) -> None:
@@ -123,6 +139,7 @@ class AiMentorPanel(QWidget):
         question = self.question.toPlainText().strip()
         if task == "question" and not question:
             self.status.setText("Сначала напишите вопрос по кибербезопасности.")
+            self.status.show()
             return
         if task == "comparison" and not self.context.local_comparison:
             return
@@ -132,6 +149,7 @@ class AiMentorPanel(QWidget):
         self.worker.reply_ready.connect(self._show_reply)
         self.worker.finished.connect(self._finished)
         self.progress.show()
+        self.status.show()
         self.status.setText(
             "Ожидаем ответ наставника…"
             if self.client.configured
@@ -141,6 +159,7 @@ class AiMentorPanel(QWidget):
         self.worker.start()
 
     def _show_reply(self, reply: MentorReply) -> None:
+        self.status.show()
         if reply.usage is not None:
             self.total_tokens += reply.usage.total
         if self.context.key != self.worker.context.key:
@@ -159,11 +178,13 @@ class AiMentorPanel(QWidget):
                 f"Токены: вход {reply.usage.prompt}, ответ {reply.usage.completion}, "
                 f"всего {reply.usage.total}. За сеанс: {self.total_tokens}."
             )
+            self.usage.show()
         else:
             self.usage.setText(
                 "Статистика запроса не получена. "
                 f"Ранее получено токенов за сеанс: {self.total_tokens}."
             )
+            self.usage.setVisible(self.total_tokens > 0 or self.client.configured)
 
     def _finished(self) -> None:
         worker = self.worker
@@ -176,6 +197,7 @@ class AiMentorPanel(QWidget):
     def cancel_display(self) -> None:
         if self.worker is not None:
             self.worker.requestInterruption()
+            self.status.show()
             self.status.setText(
                 "Завершаем текущий запрос перед закрытием. Окно остаётся отзывчивым."
             )

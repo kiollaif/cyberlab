@@ -27,7 +27,9 @@ def window(qtbot, tmp_path):
 
 
 def click(qtbot, window, button):
-    window.pages[window.current_page].ensureWidgetVisible(button)
+    area = window.pages[window.current_page]
+    if area.isAncestorOf(button):
+        area.ensureWidgetVisible(button)
     qtbot.waitUntil(button.isVisible)
     qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
 
@@ -385,7 +387,7 @@ def test_small_screen_text_wraps_and_controls_remain_reachable(qtbot, window, si
 def test_real_entrypoint_starts_event_loop_and_exits_cleanly(tmp_path):
     script = """
 import sys
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtWidgets import QApplication
 from cyberlab.app import main
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
@@ -394,6 +396,7 @@ def finish():
     app = QApplication.instance()
     windows = app.topLevelWidgets()
     valid = any(w.isVisible() and w.windowTitle().startswith('CYBERLAB') for w in windows)
+    valid = valid and 'Копир' in QCoreApplication.translate('QWidgetTextControl', '&Copy')
     app.exit(0 if valid else 2)
 original = QApplication.exec
 def run(app):

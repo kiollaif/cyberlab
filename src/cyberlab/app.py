@@ -5,7 +5,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QStandardPaths
+from PySide6.QtCore import QLibraryInfo, QLocale, QStandardPaths, QTranslator
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from cyberlab.session import LabSession
@@ -20,6 +20,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     app = QApplication([sys.argv[0]])
+    QLocale.setDefault(QLocale(QLocale.Language.Russian))
+    # Переводит и стандартные меню Qt (копирование, выделение), а не только наши подписи.
+    translator = QTranslator(app)
+    translator.load("qtbase_ru", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
+    app.installTranslator(translator)
     app.setApplicationName("CYBERLAB")
     app.setOrganizationName("CYBERLAB")
     directory = QStandardPaths.writableLocation(

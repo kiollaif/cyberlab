@@ -16,11 +16,12 @@ class VirtualComputer(QWidget):
         self.state = ComputerState()
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(create_label("LAB-01  /  Виртуальный компьютер", "heading"))
-        layout.addWidget(
-            create_label("Почта, файлы и сеть существуют только внутри модели.", "muted")
-        )
-        self.notification = create_label("Изменения после решения будут показаны здесь.", "badge")
+        layout.setSpacing(16)
+        heading = create_label("Учебный компьютер", "storyTitle")
+        heading.setToolTip("Почта, файлы и сеть существуют только внутри модели.")
+        layout.addWidget(heading)
+        self.notification = create_label("", "muted")
+        self.notification.hide()
         layout.addWidget(self.notification)
         self.tabs = QTabWidget()
         self.tabs.setObjectName("computer_tabs")
@@ -29,28 +30,25 @@ class VirtualComputer(QWidget):
 
         mail = QWidget()
         mail_layout = QVBoxLayout(mail)
-        mail_layout.addWidget(
-            create_label(
-                "Почта: прочитайте сообщение. Проверка адресов выполняется "
-                "выбором «Проверить письмо».",
-                "muted",
-            )
-        )
-        self.mail_status = create_label()
+        mail_layout.setContentsMargins(0, 20, 0, 0)
+        mail_layout.setSpacing(14)
+        self.mail_status = create_label("", "caption")
         self.mail_status.setObjectName("mail_status")
         mail_layout.addWidget(self.mail_status)
+        mail_layout.addWidget(create_label("Срочно подтвердите пароль", "heading"))
         mail_layout.addWidget(
-            create_label("IT-поддержка\nКому: сотрудник@cyberlab.example", "heading")
+            create_label("От: IT-поддержка · Кому: сотрудник@cyberlab.example", "muted")
         )
-        mail_layout.addWidget(create_label("Тема: срочно подтвердите пароль"))
         mail_layout.addWidget(
             create_label(
                 "Ваш пароль истекает через 15 минут. Подтвердите учётную запись, "
                 "чтобы сохранить доступ к проекту."
             )
         )
-        mail_layout.addWidget(create_label("[ Подтвердить учётную запись ]", "badge"))
-        self.mail_details = create_label()
+        link = create_label("Текст ссылки: «Подтвердить учётную запись»", "muted")
+        link.setToolTip("Действия с письмом выбираются в разделе «Симуляция».")
+        mail_layout.addWidget(link)
+        self.mail_details = create_label("", "muted")
         self.mail_details.setObjectName("mail_details")
         mail_layout.addWidget(self.mail_details)
         mail_layout.addStretch()
@@ -58,11 +56,7 @@ class VirtualComputer(QWidget):
 
         files = QWidget()
         files_layout = QVBoxLayout(files)
-        files_layout.addWidget(
-            create_label(
-                "Файлы: выберите название, чтобы увидеть учебное содержимое и доступность.", "muted"
-            )
-        )
+        files_layout.addWidget(create_label("Выберите файл для просмотра.", "muted"))
         self.file_list = QListWidget()
         self.file_list.setObjectName("virtual_files")
         self.file_list.addItems([file.name for file in VIRTUAL_FILES])
@@ -82,19 +76,13 @@ class VirtualComputer(QWidget):
         self.journal.setWordWrap(True)
         journal_page = QWidget()
         journal_layout = QVBoxLayout(journal_page)
-        journal_layout.addWidget(
-            create_label(
-                "Журнал: события только выбранного пути, от первого до последнего.", "muted"
-            )
-        )
+        journal_layout.addWidget(create_label("События выбранного пути", "muted"))
         journal_layout.addWidget(self.journal)
         self.tabs.addTab(journal_page, "Журнал")
 
         browser = QWidget()
         browser_layout = QVBoxLayout(browser)
-        browser_layout.addWidget(
-            create_label("Браузер: макет страницы, которую вы открыли внутри сценария.", "muted")
-        )
+        browser_layout.addWidget(create_label("Страница, открытая внутри сценария.", "muted"))
         self.browser_status = create_label()
         self.browser_status.setObjectName("browser_status")
         browser_layout.addWidget(self.browser_status)
@@ -117,8 +105,7 @@ class VirtualComputer(QWidget):
         mentor_layout.addWidget(create_label("Учебный наставник", "heading"))
         mentor_layout.addWidget(
             create_label(
-                "Наставник: что происходит сейчас и какие признаки стоит заметить. "
-                "Локальные подсказки по правилам, без AI-модели.",
+                "Локальные объяснения текущего состояния.",
                 "muted",
             )
         )
@@ -192,11 +179,12 @@ class VirtualComputer(QWidget):
         ):
             changed_tabs.add(0)
         self.notification.setText("\n".join(notices) or after.events[-1])
+        self.notification.show()
         for index, title in enumerate(("Почта", "Файлы", "Журнал", "Браузер", "Наставник")):
             changed = index in changed_tabs
             self.tabs.setTabText(index, title + (" •" if changed else ""))
             self.tabs.setTabToolTip(index, "Изменилось в текущем снимке" if changed else title)
-            self.tabs.tabBar().setTabTextColor(index, QColor("#efc18e" if changed else "#e1eaf0"))
+            self.tabs.tabBar().setTabTextColor(index, QColor("#cecbf1" if changed else "#92929d"))
 
     def _show_file(self, row: int) -> None:
         if row < 0:

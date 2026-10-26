@@ -1,8 +1,10 @@
-"""Три небольших помощника для повторяющихся элементов интерфейса."""
+"""Общие надписи, компактные действия и строки выбора."""
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -30,8 +32,8 @@ def create_panel(title: str) -> tuple[QFrame, QVBoxLayout]:
     frame = QFrame()
     frame.setObjectName("panel")
     layout = QVBoxLayout(frame)
-    layout.setContentsMargins(16, 14, 16, 14)
-    layout.setSpacing(12)
+    layout.setContentsMargins(0, 12, 0, 12)
+    layout.setSpacing(8)
     layout.addWidget(create_label(title, "heading"))
     return frame, layout
 
@@ -46,22 +48,57 @@ def make_scrollable(widget: QWidget) -> QScrollArea:
 
 
 def action_button(title: str, hint: str = "", *, primary: bool = False) -> QPushButton:
-    """Кнопка с переносом строк: длинное действие остаётся читаемым при масштабе 150%."""
+    """Короткое действие. Второстепенное пояснение доступно при наведении."""
     button = QPushButton()
     button.setAccessibleName(title)
     button.setProperty("role", "primary" if primary else "secondary")
     layout = QVBoxLayout(button)
-    layout.setContentsMargins(16, 12, 16, 12)
-    layout.setSpacing(5)
+    button.setToolTip(hint)
+    layout.setContentsMargins(11, 7, 11, 7)
+    layout.setSpacing(0)
     title_label = create_label(title, "buttonTitle")
+    title_label.setProperty("primary", primary)
+    title_font = QFont("Segoe UI")
+    title_font.setPixelSize(13)
+    title_font.setWeight(QFont.Weight.Medium)
+    title_label.setFont(title_font)
     title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     layout.addWidget(title_label)
-    if hint:
-        hint_label = create_label(hint, "buttonHint")
-        hint_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(hint_label)
+    button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+    # До включения в окно виджет ещё не наследует таблицу стилей. Считаем ширину
+    # по тому же шрифту, который будет у подписи после показа, иначе текст переносится.
+    button.setMinimumWidth(min(260, QFontMetrics(title_font).horizontalAdvance(title) + 28))
+    button.setMinimumHeight(32)
+    return button
+
+
+def link_button(title: str, hint: str = "") -> QPushButton:
+    button = action_button(title, hint)
+    button.setProperty("role", "link")
+    return button
+
+
+def choice_button(number: int, title: str, hint: str) -> QPushButton:
+    """Варианты решения выглядят как строки списка, а не конкурирующие баннеры."""
+    button = QPushButton()
+    button.setAccessibleName(title)
+    button.setToolTip(hint)
+    button.setProperty("role", "decision")
+    layout = QHBoxLayout(button)
+    layout.setContentsMargins(12, 11, 12, 11)
+    layout.setSpacing(14)
+    number_label = create_label(f"{number:02d}", "choiceNumber", wrap=False)
+    number_label.setFixedWidth(24)
+    layout.addWidget(number_label)
+    text = QVBoxLayout()
+    text.setSpacing(3)
+    text.addWidget(create_label(title, "buttonTitle"))
+    text.addWidget(create_label(hint, "buttonHint"))
+    layout.addLayout(text, 1)
+    layout.addWidget(create_label("→", "choiceArrow", wrap=False))
+    for label in button.findChildren(QLabel):
+        label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-    button.setMinimumHeight(48)
     return button
 
 

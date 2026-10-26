@@ -6,6 +6,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -19,12 +20,13 @@ from PySide6.QtWidgets import (
 from cyberlab.ai_context import build_context
 from cyberlab.ai_panel import AiMentorPanel
 from cyberlab.learning import history_path
+from cyberlab.navigation import WorkspaceNavigation
 from cyberlab.review_pages import ComparisonPage, DecisionsPage
 from cyberlab.session import LabSession
 from cyberlab.simulation_pages import ConsequencePage, ResultsPage, SituationPage
 from cyberlab.styles import STYLESHEET
 from cyberlab.tutorial import TutorialPage
-from cyberlab.ui_helpers import action_button, create_label, make_scrollable
+from cyberlab.ui_helpers import action_button, create_label, link_button, make_scrollable
 from cyberlab.virtual_computer import VirtualComputer
 
 
@@ -45,27 +47,38 @@ class MainWindow(QMainWindow):
         # Qt считает размеры в логических пикселях: при масштабе 150% их меньше.
         self.setMinimumSize(600, 400)
         available = self.screen().availableGeometry()
-        self.resize(min(1280, available.width() - 40), min(800, available.height() - 40))
+        self.resize(min(1366, available.width() - 40), min(850, available.height() - 40))
         self.setStyleSheet(STYLESHEET)
         root = QWidget()
         root.setObjectName("root")
         self.setCentralWidget(root)
-        layout = QVBoxLayout(root)
-        layout.setContentsMargins(16, 12, 16, 12)
-        header = QHBoxLayout()
-        header.addWidget(create_label("CYBERLAB", "brand", wrap=False))
-        header.addStretch()
-        self.back_button = action_button("Назад")
-        self.back_button.setMaximumWidth(150)
+        layout = QHBoxLayout(root)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.navigation = WorkspaceNavigation()
+        self.navigation.navigate.connect(self._navigate)
+        layout.addWidget(self.navigation)
+        workspace = QWidget()
+        workspace.setObjectName("workspace")
+        workspace_layout = QVBoxLayout(workspace)
+        workspace_layout.setContentsMargins(0, 0, 0, 0)
+        workspace_layout.setSpacing(0)
+        topbar = QWidget()
+        topbar.setObjectName("topbar")
+        topbar.setFixedHeight(52)
+        header = QHBoxLayout(topbar)
+        header.setContentsMargins(28, 0, 28, 0)
+        header.setSpacing(12)
+        self.back_button = link_button("Назад")
         self.back_button.clicked.connect(self._back)
         header.addWidget(self.back_button)
-        self.menu_button = action_button("В главное меню")
-        self.menu_button.setMaximumWidth(220)
-        self.menu_button.clicked.connect(self.show_menu)
-        header.addWidget(self.menu_button)
-        layout.addLayout(header)
+        self.breadcrumb = create_label("", "breadcrumb")
+        header.addWidget(self.breadcrumb, 1)
+        workspace_layout.addWidget(topbar)
+        self.menu_button = self.navigation.buttons["home"]
         self.stack = QStackedWidget()
-        layout.addWidget(self.stack, 1)
+        workspace_layout.addWidget(self.stack, 1)
+        layout.addWidget(workspace, 1)
 
         self.menu = self._create_menu()
         self.situation = SituationPage()
@@ -110,23 +123,52 @@ class MainWindow(QMainWindow):
         self.tutorial.finished.connect(self._finish_tutorial)
         self.comparison.states_selected.connect(self.computer.render_comparison)
         self.comparison.states_selected.connect(self._comparison_context_changed)
-        self.ai_buttons = {}
-        for page in (self.menu, self.situation, self.consequence, self.results, self.comparison):
-            button = action_button("ИИ-наставник", "DeepSeek по запросу или локальные объяснения")
-            button.setObjectName("open_ai_mentor")
-            button.clicked.connect(self._open_ai)
-            page.layout().addWidget(button)
-            self.ai_buttons[page] = button
+        # Общие действия больше не повторяются крупными кнопками на каждом экране.
+        # Ссылки нужны обработчикам и тестам; сам виджет существует в одном экземпляре.
+        self.ai_buttons = dict.fromkeys(
+            (self.menu, self.situation, self.consequence, self.results, self.comparison),
+            self.navigation.buttons["mentor"],
+        )
+        for page in (self.situation, self.consequence, self.results):
+            page.details_button = self.navigation.buttons["computer"]
+        self.situation.decisions_button = self.navigation.buttons["decisions"]
+        self.decisions.compare_button = self.navigation.buttons["comparison"]
+        self.results.menu_button = self.menu_button
+        self.help_button = self.navigation.buttons["help"]
+        self.sessions_button = self.navigation.buttons["sessions"]
         self.show_menu()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        if hasattr(self, "navigation"):
+            self.navigation.set_compact(self.width() < 980)
+
+    def _navigate(self, section: str) -> None:
+        actions = {
+            "home": self.show_menu,
+            "simulation": self._resume,
+            "decisions": self._open_decisions,
+            "comparison": self._open_comparison,
+            "sessions": self._open_sessions,
+            "computer": self._open_computer,
+            "mentor": self._open_ai,
+            "help": self._replay_tutorial,
+        }
+        self._perform(actions[section])
+
+    def _resume(self) -> None:
+        self._remember_session()
+        self._display_active()
 
     def _add_page(self, page: QWidget) -> None:
         # Каждому экрану доступна вертикальная прокрутка. Ограничиваем ширину
         # чтения, но не фиксируем высоту русского текста или карточек решений.
         container = QWidget()
         row = QHBoxLayout(container)
-        row.setContentsMargins(0, 8, 0, 8)
+        row.setContentsMargins(28, 30, 28, 24)
         row.addStretch()
-        page.setMaximumWidth(1080)
+        page.setMaximumWidth(960)
+        page.layout().setContentsMargins(0, 0, 0, 0)
         row.addWidget(page, 1)
         row.addStretch()
         scroll = make_scrollable(container)
@@ -140,7 +182,21 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.pages[page])
         self.pages[page].verticalScrollBar().setValue(0)
         self.back_button.setVisible(bool(self.back_stack))
-        self.menu_button.setVisible(page is not self.menu)
+        sections = {
+            self.menu: "home",
+            self.situation: "simulation",
+            self.consequence: "simulation",
+            self.results: "simulation",
+            self.decisions: "decisions",
+            self.comparison: "comparison",
+            self.saved_sessions: "sessions",
+            self.computer: "computer",
+            self.ai_mentor: "mentor",
+            self.tutorial: "help",
+        }
+        section = sections[page]
+        self.navigation.select(section)
+        self.breadcrumb.setText(f"Рабочее пространство  /  {self.navigation.titles[section]}")
         page.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _back(self) -> None:
@@ -150,41 +206,49 @@ class MainWindow(QMainWindow):
     def _create_menu(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.addStretch()
-        layout.addWidget(create_label("Каждое решение меняет историю", "storyTitle"))
+        layout.setSpacing(18)
+        layout.addWidget(create_label("Практика кибербезопасности", "storyTitle"))
         layout.addWidget(
+            create_label("Распознавайте угрозы и проверяйте последствия своих решений.", "muted")
+        )
+        layout.addSpacing(24)
+        layout.addWidget(create_label("СЦЕНАРИИ", "eyebrow"))
+        scenario_row = QFrame()
+        scenario_row.setObjectName("scenarioRow")
+        scenario_layout = QVBoxLayout(scenario_row)
+        scenario_layout.setContentsMargins(0, 22, 0, 22)
+        scenario_layout.setSpacing(12)
+        scenario_layout.addWidget(create_label("01  /  ФИШИНГ", "eyebrow"))
+        title = create_label(self.lab.scenario.title, "heading")
+        title.setStyleSheet("font-size: 18px; font-weight: 500;")
+        scenario_layout.addWidget(title)
+        scenario_layout.addWidget(
             create_label(
-                "Учитесь распознавать киберугрозы, принимайте решения "
-                "и наблюдайте за их последствиями"
+                "Срочное письмо, чужая ссылка и несколько вариантов действий. "
+                "Вернитесь к любому выбору и сравните результаты.",
+                "muted",
             )
         )
-        layout.addWidget(
-            create_label(
-                "Один сценарий · Несколько исходов · Можно вернуться и попробовать иначе", "muted"
-            )
-        )
-        self.start_button = action_button("Начать симуляцию", self.lab.scenario.title, primary=True)
+        self.start_button = action_button("Начать симуляцию", primary=True)
         self.start_button.setObjectName("start_simulation")
         self.start_button.clicked.connect(self._start)
-        layout.addWidget(self.start_button)
-        self.resume_button = action_button("Продолжить прохождение", "Открыть сохранённый шаг")
+        actions = QHBoxLayout()
+        actions.setSpacing(8)
+        actions.addWidget(self.start_button)
+        self.resume_button = action_button("Продолжить прохождение")
         self.resume_button.setObjectName("resume_simulation")
         self.resume_button.clicked.connect(lambda: self._perform(self._display_active))
-        layout.addWidget(self.resume_button)
-        self.help_button = action_button("Как это работает", "Короткое интерактивное обучение")
-        self.help_button.clicked.connect(self._replay_tutorial)
-        layout.addWidget(self.help_button)
-        self.sessions_button = action_button("История прохождений")
-        self.sessions_button.clicked.connect(self._open_sessions)
-        layout.addWidget(self.sessions_button)
+        actions.addWidget(self.resume_button)
+        actions.addStretch()
+        scenario_layout.addLayout(actions)
+        layout.addWidget(scenario_row)
+        layout.addStretch()
         layout.addWidget(
             create_label(
-                "Безопасная симуляция: письма, пароли и файлы вымышлены. "
-                "Ваш настоящий компьютер не затрагивается. Интернет и регистрация не нужны.",
-                "badge",
+                "Изолированная учебная среда. Настоящие файлы в безопасности.",
+                "caption",
             )
         )
-        layout.addStretch()
         return page
 
     def show_menu(self) -> None:
@@ -339,13 +403,9 @@ class MainWindow(QMainWindow):
     def _create_sessions_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.addWidget(create_label("История прохождений", "storyTitle"))
-        layout.addWidget(
-            create_label(
-                "Все тренировки сохраняются автоматически. Выберите прохождение, "
-                "чтобы продолжить с его последнего выбранного шага."
-            )
-        )
+        layout.setSpacing(16)
+        layout.addWidget(create_label("Прохождения", "storyTitle"))
+        layout.addWidget(create_label("Сохранённые тренировки и результаты.", "muted"))
         self.session_list = QListWidget()
         self.session_list.setWordWrap(True)
         self.session_list.setMinimumHeight(260)
@@ -355,7 +415,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.empty_history)
         self.open_session_button = action_button("Открыть прохождение", primary=True)
         self.open_session_button.clicked.connect(self._open_selected_session)
-        layout.addWidget(self.open_session_button)
+        layout.addWidget(self.open_session_button, alignment=Qt.AlignmentFlag.AlignLeft)
         return page
 
     def _open_sessions(self) -> None:
@@ -376,8 +436,11 @@ class MainWindow(QMainWindow):
                 decisions = len(history_path(entries, active.id)) - 1
                 item = QListWidgetItem(
                     f"Прохождение {number} · {date}\n"
-                    f"{status}: {self.lab.scenario.node(active.node_id).title}"
-                    f"\nРешений в текущем пути: {decisions} · Сохранённых шагов: {len(entries)}"
+                    f"{status}: {self.lab.scenario.node(active.node_id).title} "
+                    f"· Риск {active.state.risk}/100"
+                )
+                item.setToolTip(
+                    f"Решений в пути: {decisions}. Всего сохранено шагов: {len(entries)}."
                 )
                 item.setData(Qt.ItemDataRole.UserRole, session.id)
                 self.session_list.addItem(item)

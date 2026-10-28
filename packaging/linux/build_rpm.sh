@@ -18,12 +18,13 @@ trap report_error ERR
 # ожидание зеркала, чтобы сетевая ошибка не держала сборку десятки минут.
 sed -i '/^[^#].*x86_64-i586/d; s@http://@https://@g' /etc/apt/sources.list.d/*.list
 printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' \
-    'Acquire::Retries "1";' > /etc/apt/apt.conf.d/99cyberlab-network
+    'Acquire::Retries "1";' > /etc/apt/apt.conf.d/99cyberlab-network.conf
 # Минимальный alt:p11 не содержит корневых CA. CI передаёт публичное хранилище
 # доверенных сертификатов Ubuntu только для чтения; проверку TLS не отключаем.
+# APT в ALT читает здесь только файлы с окончанием .conf (в отличие от Debian).
 if [ -r /build-ca-certificates.crt ]; then
     printf '%s\n' 'Acquire::https::CaInfo "/build-ca-certificates.crt";' \
-        >> /etc/apt/apt.conf.d/99cyberlab-network
+        >> /etc/apt/apt.conf.d/99cyberlab-network.conf
 fi
 apt-get update 2>&1 | tee "$log"
 apt-get install -y rpm-build python3 tar gzip coreutils binutils shadow-utils \

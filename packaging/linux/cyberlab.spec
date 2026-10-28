@@ -11,6 +11,9 @@ Source2: cyberlab.png
 ExclusiveArch: x86_64
 AutoReqProv: no
 Requires: glibc-core >= 2.35
+# В ALT минимальный glibc-core не содержит этих совместимых библиотек-заглушек.
+# Требуем возможности RPM: менеджер пакетов найдёт нужный пакет именно в ALT.
+Requires: libpthread.so.0()(64bit), librt.so.1()(64bit)
 Requires: libX11, libEGL, libGL, libfontconfig, libdbus, libxcb
 Requires: libxkbcommon, libxkbcommon-x11, libxcbutil-cursor
 

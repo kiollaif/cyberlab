@@ -14,6 +14,11 @@ report_error() {
     exit "$result"
 }
 trap report_error ERR
+# Для x86_64-сборки не скачиваем индексы 32-битного репозитория. Ограничиваем
+# ожидание зеркала, чтобы сетевая ошибка не держала сборку десятки минут.
+sed -i '/^[^#].*x86_64-i586/d; s@http://@https://@g' /etc/apt/sources.list.d/*.list
+printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' \
+    'Acquire::Retries "1";' > /etc/apt/apt.conf.d/99cyberlab-network
 apt-get update 2>&1 | tee "$log"
 apt-get install -y rpm-build python3 tar gzip coreutils binutils \
     xorg-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \

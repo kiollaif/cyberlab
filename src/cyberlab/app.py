@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import QLibraryInfo, QLocale, QStandardPaths, QTranslator
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from cyberlab.desktop import application_icon, integrate_appimage
 from cyberlab.session import LabSession
 from cyberlab.storage import HistoryRepository
 from cyberlab.ui import MainWindow
@@ -18,6 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--database", type=Path, help="Путь к SQLite; по умолчанию — каталог данных пользователя"
     )
+    parser.add_argument("--smoke-test", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     app = QApplication([sys.argv[0]])
     QLocale.setDefault(QLocale(QLocale.Language.Russian))
@@ -27,6 +29,13 @@ def main(argv: list[str] | None = None) -> int:
     app.installTranslator(translator)
     app.setApplicationName("CYBERLAB")
     app.setOrganizationName("CYBERLAB")
+    app.setDesktopFileName("cyberlab")
+    app.setWindowIcon(application_icon())
+    if args.smoke_test:
+        from cyberlab.diagnostics import run_smoke_test
+
+        return run_smoke_test(app, args.smoke_test)
+    integrate_appimage()
     directory = QStandardPaths.writableLocation(
         QStandardPaths.StandardLocation.AppLocalDataLocation
     )

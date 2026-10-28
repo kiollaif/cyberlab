@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CYBERLAB
+Comment=Учебная лаборатория кибербезопасности
+Exec=cyberlab
+Icon=cyberlab
+Terminal=false
+Categories=Education;Security;
+StartupWMClass=CYBERLAB

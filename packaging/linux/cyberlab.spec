@@ -40,6 +40,7 @@ install -Dm644 %SOURCE1 %buildroot/usr/share/applications/cyberlab.desktop
 install -Dm644 %SOURCE2 %buildroot/usr/share/icons/hicolor/256x256/apps/cyberlab.png
 
 %files
+%defattr(-,root,root)
 /opt/cyberlab
 /usr/bin/cyberlab
 /usr/share/applications/cyberlab.desktop

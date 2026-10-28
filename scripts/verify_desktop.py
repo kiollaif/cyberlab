@@ -20,7 +20,8 @@ def assert_no_console(executable: Path) -> None:
 
 
 def verify(executable: Path, report: Path) -> None:
-    executable = executable.resolve()
+    # Сохраняем симлинк /usr/bin/cyberlab: проверяем именно путь ярлыка RPM.
+    executable = executable.absolute()
     report = report.resolve()
     with TemporaryDirectory(prefix="CyberLab launch with spaces ") as directory:
         work = Path(directory)

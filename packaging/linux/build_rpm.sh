@@ -31,7 +31,7 @@ cp src/cyberlab/resources/cyberlab.png "$top/SOURCES/"
 cp packaging/linux/cyberlab.spec "$top/SPECS/"
 # Политика ALT запрещает rpmbuild от root. Root нужен только для apt и установки
 # тестового пакета; сама сборка идёт от отдельного непривилегированного пользователя.
-useradd --create-home --shell /bin/bash cyberlab-builder
+useradd --create-home --user-group --shell /bin/bash cyberlab-builder
 chown -R cyberlab-builder:cyberlab-builder "$top"
 su -s /bin/bash cyberlab-builder -c \
     "rpmbuild --define '_topdir $top' --target x86_64 -bb '$top/SPECS/cyberlab.spec'" \

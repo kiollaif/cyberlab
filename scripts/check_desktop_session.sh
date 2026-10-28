@@ -1,7 +1,19 @@
 #!/bin/bash
 # Запускается внутри dbus-run-session и xvfb-run. Проверяет настоящий WM.
 set -euo pipefail
-trap 'result=$?; message="${BASH_COMMAND} failed at line ${LINENO}, exit=${result}"; echo "::error title=Desktop session::${message}"; if [[ -n "${report:-}" && -f "${report%.json}-wm.log" ]]; then tail -c 3000 "${report%.json}-wm.log"; fi' ERR
+report_error() {
+    result=$?
+    message="Desktop session failed, exit=$result"
+    if [[ -n "${report:-}" && -f "${report%.json}-wm.log" ]]; then
+        message+=" $(tail -c 2500 "${report%.json}-wm.log")"
+    fi
+    message=${message//%/%25}
+    message=${message//$'\r'/%0D}
+    message=${message//$'\n'/%0A}
+    echo "::error title=Desktop session::$message"
+    exit "$result"
+}
+trap report_error ERR
 desktop=$1
 image=$(realpath "$2")
 report=$(realpath -m "$3")
@@ -30,7 +42,7 @@ for attempt in $(seq 1 30); do
     if ! kill -0 "$wm" 2>/dev/null; then
         cat "${report%.json}-wm.log"
         echo "Window manager exited before the application started" >&2
-        exit 1
+        false
     fi
     property=$(xprop -root _NET_SUPPORTING_WM_CHECK || true)
     if [[ "$property" == *"window id"* ]]; then
@@ -47,7 +59,7 @@ done
 if [[ "$ready" != true ]]; then
     cat "${report%.json}-wm.log"
     echo "Requested window manager did not acquire the display" >&2
-    exit 1
+    false
 fi
 python3 scripts/verify_desktop.py "$image" --report "$report"
 kill -0 "$wm"

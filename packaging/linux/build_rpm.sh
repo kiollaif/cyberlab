@@ -4,7 +4,16 @@ set -euo pipefail
 cd /work
 mkdir -p /work/dist/rpm
 log=/work/dist/rpm/build.log
-trap 'result=$?; message=$(tail -c 2800 "$log"); message=${message//\%/\%25}; message=${message//$'"'"'\r'"'"'/\%0D}; message=${message//$'"'"'\n'"'"'/\%0A}; echo "::error title=ALT RPM::exit=$result $message"' ERR
+report_error() {
+    result=$?
+    message=$(tail -c 2800 "$log")
+    message=${message//%/%25}
+    message=${message//$'\r'/%0D}
+    message=${message//$'\n'/%0A}
+    echo "::error title=ALT RPM::exit=$result $message"
+    exit "$result"
+}
+trap report_error ERR
 apt-get update 2>&1 | tee "$log"
 apt-get install -y rpm-build python3 tar gzip coreutils binutils \
     xorg-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \

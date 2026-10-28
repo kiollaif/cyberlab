@@ -22,7 +22,11 @@ $shortcuts = @(
 )
 foreach ($shortcut in $shortcuts) {
     if (!(Test-Path $shortcut)) { throw "Missing shortcut: $shortcut" }
-    if ($shell.CreateShortcut($shortcut).TargetPath -ne $installed) { throw "Wrong shortcut target" }
+    $destination = $shell.CreateShortcut($shortcut).TargetPath
+    # TEMP может содержать RUNNER~1, а COM возвращает runneradmin.
+    # Сравниваем идентичность файлов Windows, а не написание пути.
+    uv run --locked python -c "import os, sys; assert os.path.samefile(sys.argv[1], sys.argv[2])" $destination $installed
+    if ($LASTEXITCODE -ne 0) { throw "Wrong shortcut target: $destination, expected $installed" }
 }
 uv run --locked python scripts/verify_desktop.py $installed --report $report
 if ($LASTEXITCODE -ne 0) { throw "Installed application smoke test failed" }

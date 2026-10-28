@@ -30,6 +30,8 @@ apt-get update 2>&1 | tee "$log"
 apt-get install -y rpm-build python3 tar gzip coreutils binutils shadow-utils \
     xorg-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \
     libX11 libxcb libxkbcommon libxkbcommon-x11 libxcbutil-cursor 2>&1 | tee -a "$log"
+# Кэш содержит только публичные индексы и RPM; обновление и проверка APT остаются.
+chmod -R a+rX /var/cache/apt/archives /var/lib/apt/lists
 top=/work/build/rpm
 mkdir -p "$top"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS} /work/dist/rpm
 cp downloads/CyberLab-linux-bundle.tar.gz "$top/SOURCES/"

@@ -17,8 +17,10 @@ Requires: libpthread.so.0()(64bit), librt.so.1()(64bit)
 Requires: libX11, libEGL, libGL, libfontconfig, libdbus, libxcb
 Requires: libxkbcommon, libxkbcommon-x11, libxcbutil-cursor
 
-# Python и Qt уже в пакете. Их бинарные файлы нельзя повторно strip-ить.
-%set_strip_method none
+# Python и Qt уже собраны PyInstaller. Повторная обработка ELF через brp-alt
+# может изменить вложенный архив, поэтому сохраняем готовые бинарные файлы.
+# Вместо обработки системных библиотек проверяем установленную сборку запуском.
+%define __os_install_post %{nil}
 %define debug_package %{nil}
 
 %description

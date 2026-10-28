@@ -198,12 +198,25 @@ jobs:
         with:
           name: CyberLab-linux-bundle
           path: downloads
+      - uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/cyberlab-alt-apt
+          key: alt-p11-apt-${{ runner.arch }}-${{ github.run_id }}
+          restore-keys: alt-p11-apt-${{ runner.arch }}-
       - name: Build and test RPM inside official ALT p11 container
         run: |
+          mkdir -p '${{ runner.temp }}/cyberlab-alt-apt/archives' '${{ runner.temp }}/cyberlab-alt-apt/lists'
           docker run --rm -v "$PWD:/work" \
             -v /etc/ssl/certs/ca-certificates.crt:/build-ca-certificates.crt:ro \
+            -v '${{ runner.temp }}/cyberlab-alt-apt/archives:/var/cache/apt/archives' \
+            -v '${{ runner.temp }}/cyberlab-alt-apt/lists:/var/lib/apt/lists' \
             -w /work alt:p11 \
             bash packaging/linux/build_rpm.sh
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: ${{ runner.temp }}/cyberlab-alt-apt
+          key: alt-p11-apt-${{ runner.arch }}-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         with:
           name: CyberLab-ALT-p11-unverified-candidate

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Запускается внутри dbus-run-session и xvfb-run. Проверяет настоящий WM.
 set -euo pipefail
+trap 'result=$?; message="${BASH_COMMAND} failed at line ${LINENO}, exit=${result}"; echo "::error title=Desktop session::${message}"; if [[ -n "${report:-}" && -f "${report%.json}-wm.log" ]]; then tail -c 3000 "${report%.json}-wm.log"; fi' ERR
 desktop=$1
 image=$(realpath "$2")
 report=$(realpath -m "$3")
@@ -14,7 +15,7 @@ chmod 700 "$XDG_RUNTIME_DIR"
 case "$desktop" in
     kde)
         export XDG_CURRENT_DESKTOP=KDE
-        kwin_x11 --replace --no-global-shortcuts >"${report%.json}-wm.log" 2>&1 &
+        kwin_x11 --replace >"${report%.json}-wm.log" 2>&1 &
         ;;
     gnome)
         export XDG_CURRENT_DESKTOP=GNOME
@@ -31,10 +32,10 @@ for attempt in $(seq 1 30); do
         echo "Window manager exited before the application started" >&2
         exit 1
     fi
-    property=$(xprop -root _NET_SUPPORTING_WM_CHECK)
+    property=$(xprop -root _NET_SUPPORTING_WM_CHECK || true)
     if [[ "$property" == *"window id"* ]]; then
         id=${property##* }
-        name=$(xprop -id "$id" _NET_WM_NAME)
+        name=$(xprop -id "$id" _NET_WM_NAME 2>/dev/null || true)
         if [[ "$desktop:$name" == kde:*KWin* || "$desktop:$name" == gnome:*GNOME* ]]; then
             echo "$name" | tee "${report%.json}-wm.txt"
             ready=true

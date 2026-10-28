@@ -1,5 +1,11 @@
 # Проверяем настоящую тихую установку, ярлыки, запуск и удаление без потери данных.
 $ErrorActionPreference = "Stop"
+trap {
+    $message = ($_.Exception.Message + "`n" + $_.ScriptStackTrace).Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+    Write-Output "::error title=Windows installer verification::$message"
+    if ($log -and (Test-Path $log)) { Get-Content $log -Tail 35 }
+    exit 1
+}
 $root = Split-Path -Parent $PSScriptRoot
 $installer = Join-Path $root "dist\desktop\CyberLab-Setup.exe"
 $target = Join-Path $env:TEMP "CyberLab installed test"

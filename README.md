@@ -25,6 +25,10 @@
 Готовые приложения публикуются в **Artifacts** успешных запусков
 [Desktop builds](https://github.com/kiollaif/cyberlab/actions/workflows/desktop.yml).
 Результат конкретной сборки и ограничения — в [docs/desktop.md](docs/desktop.md).
+Проверенный [прогон от 29 октября 2026](https://github.com/kiollaif/cyberlab/actions/runs/40742318249):
+[скачать Windows](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12840506286) ·
+[скачать AppImage](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12838863942).
+Артефакты скачиваются в ZIP; для скачивания нужен вход в GitHub.
 
 - **Windows x86_64:** артефакт `CyberLab-Windows-x86_64`. Распакуйте архив,
   откройте `CyberLab-Setup.exe`. Установщик создаёт ярлыки на рабочем столе
@@ -32,8 +36,9 @@
 - **Linux x86_64:** артефакт `CyberLab-Linux-x86_64`. Распакуйте архив,
   разрешите выполнение `CyberLab-x86_64.AppImage` в свойствах файла и откройте
   двойным нажатием. После первого запуска программа появляется в меню.
-- **Альт Образование:** совместимость пока не подтверждена. RPM-кандидат для
-  ALT p11 проверяется отдельно и не объявляется готовым выпуском для этой ОС.
+- **Альт Образование:** совместимость пока не подтверждена.
+  [RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12840207322)
+  собран и проверен в ALT Container p11; это не проверка Альт Образование.
 
 Ни Python, ни uv, ни редактор кода пользователю сборки не нужны. Основной
 сценарий и локальный наставник работают офлайн; история сохраняется вне папки

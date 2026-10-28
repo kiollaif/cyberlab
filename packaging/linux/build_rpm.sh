@@ -2,16 +2,19 @@
 # Только внутри официального контейнера alt:p11. Это НЕ Альт Образование.
 set -euo pipefail
 cd /work
-apt-get update
+mkdir -p /work/dist/rpm
+log=/work/dist/rpm/build.log
+trap 'result=$?; message=$(tail -c 2800 "$log"); message=${message//\%/\%25}; message=${message//$'"'"'\r'"'"'/\%0D}; message=${message//$'"'"'\n'"'"'/\%0A}; echo "::error title=ALT RPM::exit=$result $message"' ERR
+apt-get update 2>&1 | tee "$log"
 apt-get install -y rpm-build python3 tar gzip coreutils binutils \
-    xorg-server-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \
-    libX11 libxcb libxkbcommon libxkbcommon-x11 libxcbutil-cursor
+    xorg-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \
+    libX11 libxcb libxkbcommon libxkbcommon-x11 libxcbutil-cursor 2>&1 | tee -a "$log"
 top=/work/build/rpm
 mkdir -p "$top"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS} /work/dist/rpm
 cp downloads/CyberLab-linux-bundle.tar.gz "$top/SOURCES/"
 cp packaging/linux/cyberlab.desktop "$top/SOURCES/"
 cp src/cyberlab/resources/cyberlab.png "$top/SOURCES/"
-rpmbuild --define "_topdir $top" --target x86_64 -bb packaging/linux/cyberlab.spec
+rpmbuild --define "_topdir $top" --target x86_64 -bb packaging/linux/cyberlab.spec 2>&1 | tee -a "$log"
 package=$(find "$top/RPMS" -name 'cyberlab-*.rpm' -type f | head -1)
 test -n "$package"
 rpm -ivh "$package"

@@ -20,7 +20,7 @@ sed -i '/^[^#].*x86_64-i586/d; s@http://@https://@g' /etc/apt/sources.list.d/*.l
 printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' \
     'Acquire::Retries "1";' > /etc/apt/apt.conf.d/99cyberlab-network
 apt-get update 2>&1 | tee "$log"
-apt-get install -y rpm-build python3 tar gzip coreutils binutils \
+apt-get install -y rpm-build python3 tar gzip coreutils binutils shadow-utils \
     xorg-xvfb xauth fonts-ttf-dejavu libGL libEGL libfontconfig libdbus \
     libX11 libxcb libxkbcommon libxkbcommon-x11 libxcbutil-cursor 2>&1 | tee -a "$log"
 top=/work/build/rpm
@@ -28,7 +28,14 @@ mkdir -p "$top"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS} /work/dist/rpm
 cp downloads/CyberLab-linux-bundle.tar.gz "$top/SOURCES/"
 cp packaging/linux/cyberlab.desktop "$top/SOURCES/"
 cp src/cyberlab/resources/cyberlab.png "$top/SOURCES/"
-rpmbuild --define "_topdir $top" --target x86_64 -bb packaging/linux/cyberlab.spec 2>&1 | tee -a "$log"
+cp packaging/linux/cyberlab.spec "$top/SPECS/"
+# Политика ALT запрещает rpmbuild от root. Root нужен только для apt и установки
+# тестового пакета; сама сборка идёт от отдельного непривилегированного пользователя.
+useradd --create-home --shell /bin/bash cyberlab-builder
+chown -R cyberlab-builder:cyberlab-builder "$top"
+su -s /bin/bash cyberlab-builder -c \
+    "rpmbuild --define '_topdir $top' --target x86_64 -bb '$top/SPECS/cyberlab.spec'" \
+    2>&1 | tee -a "$log"
 package=$(find "$top/RPMS" -name 'cyberlab-*.rpm' -type f | head -1)
 test -n "$package"
 rpm -ivh "$package"

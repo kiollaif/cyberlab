@@ -200,7 +200,9 @@ jobs:
           path: downloads
       - name: Build and test RPM inside official ALT p11 container
         run: |
-          docker run --rm -v "$PWD:/work" -w /work alt:p11 \
+          docker run --rm -v "$PWD:/work" \
+            -v /etc/ssl/certs/ca-certificates.crt:/build-ca-certificates.crt:ro \
+            -w /work alt:p11 \
             bash packaging/linux/build_rpm.sh
       - uses: actions/upload-artifact@v4
         with:

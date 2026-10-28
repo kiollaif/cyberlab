@@ -33,8 +33,8 @@ cp packaging/linux/cyberlab.spec "$top/SPECS/"
 # тестового пакета; сама сборка идёт от отдельного непривилегированного пользователя.
 useradd --create-home --user-group --shell /bin/bash cyberlab-builder
 chown -R cyberlab-builder:cyberlab-builder "$top"
-su -s /bin/bash cyberlab-builder -c \
-    "rpmbuild --define '_topdir $top' --target x86_64 -bb '$top/SPECS/cyberlab.spec'" \
+runuser -u cyberlab-builder -- \
+    rpmbuild --define "_topdir $top" --target x86_64 -bb "$top/SPECS/cyberlab.spec" \
     2>&1 | tee -a "$log"
 package=$(find "$top/RPMS" -name 'cyberlab-*.rpm' -type f | head -1)
 test -n "$package"

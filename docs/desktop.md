@@ -18,14 +18,14 @@
 | `CyberLab-ALT-p11-unverified-candidate` | RPM-кандидат и результаты проверки ALT Container p11; это не проверка Альт Образование |
 | `CyberLab-desktop-kde-reports`, `CyberLab-desktop-gnome-reports` | Результат запуска с настоящим оконным менеджером, его имя и журнал |
 
-Готовые файлы [успешного прогона 40742318249](https://github.com/kiollaif/cyberlab/actions/runs/40742318249)
-на коммите `3eaacc8`:
+Готовые файлы [успешного прогона 40917682019](https://github.com/kiollaif/cyberlab/actions/runs/40917682019)
+на коммите `bf2d88f`:
 
 | Содержимое ZIP | Ссылка |
 | --- | --- |
-| `CyberLab-Setup.exe`, `CyberLab.exe` | [Скачать Windows](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12840506286) |
-| `CyberLab-x86_64.AppImage` | [Скачать AppImage](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12838863942) |
-| `CyberLab-alt-p11-unverified.rpm` | [Скачать RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/40742318249/artifacts/12840207322) |
+| `CyberLab-Setup.exe`, `CyberLab.exe` | [Скачать Windows](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12916063179) |
+| `CyberLab-x86_64.AppImage` | [Скачать AppImage](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12916657842) |
+| `CyberLab-alt-p11-unverified.rpm` | [Скачать RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12917062201) |
 
 **Windows:** распакуйте ZIP артефакта, дважды нажмите `CyberLab-Setup.exe` и
 завершите установку. Программа устанавливается для текущего пользователя,
@@ -127,7 +127,8 @@ uv sync --locked --group build
 uv run --locked --group build python scripts/build_desktop.py
 ```
 
-Windows: после этого запустить Inno Setup 6 (`ISCC packaging/windows/CyberLab.iss`).
+На Windows можно выполнить отдельный `scripts/build_windows.ps1`: он собирает
+EXE и проверяет его без Python/uv в PATH. Для установщика запустить Inno Setup 6 (`ISCC packaging/windows/CyberLab.iss`).
 Linux: собирать на Ubuntu 22.04 x86_64 с зависимостями Qt из workflow или
 `packaging/linux/Dockerfile.ubuntu`. PyInstaller не выполняет кросс-компиляцию.
 Готовые файлы находятся в `dist/desktop/`; исходники и wheel собираются отдельно
@@ -136,7 +137,7 @@ Linux: собирать на Ubuntu 22.04 x86_64 с зависимостями Q
 ## Что считается проверкой
 
 Windows и Linux проходят исходные тесты, затем проверяется именно собранный
-файл: окно, иконка, русский Qt, опасная ветка, возврат, безопасная ветка,
+файл: окно, иконка, русский Qt, четыре сценария, опасная ветка, возврат, безопасная ветка,
 сравнение, локальный наставник, неизменность состояния и повторное открытие
 SQLite. Python audit hook запрещает сеть в этом тесте; он не является
 сетевой изоляцией нативного Qt на уровне ОС. Проверка запуска AppImage в CI
@@ -154,8 +155,8 @@ SQLite. Python audit hook запрещает сеть в этом тесте; о
 
 ### Результаты этой доработки — 29 октября 2026
 
-- До изменений: 88 тестов прошли в облачной Linux-среде.
-- Linux: 93 теста прошли; после последних изменений повторены — 93 прошли.
+- Перед текущим расширением: 93 теста. Старые проверки сохранены.
+- Linux: 147 тестов прошли, включая новые сценарии, экспорт и настройки API.
   Windows CI: тестовый шаг прошёл; Linux-тест запуска `.desktop` на Windows
   не выполняется по явному `skipif`. Существующие тесты не удалялись.
   Ruff и проверка форматирования прошли.
@@ -180,8 +181,8 @@ SQLite. Python audit hook запрещает сеть в этом тесте; о
   Результат опубликован как `CyberLab-alt-p11-unverified.rpm`.
 - Альт Образование, пользовательские Windows 10/11, Wayland: не проверены.
 
-[Desktop builds](https://github.com/kiollaif/cyberlab/actions/runs/40742318249)
+[Desktop builds](https://github.com/kiollaif/cyberlab/actions/runs/40917682019)
 завершился успешно: Windows, Linux, KWin, GNOME Shell и ALT p11 RPM.
-Отдельный [Checks](https://github.com/kiollaif/cyberlab/actions/runs/40742318274)
+Отдельный [Checks](https://github.com/kiollaif/cyberlab/actions/runs/40917682005)
 тоже завершился успешно на Windows и Ubuntu. Ссылки относятся к проверенному
-коммиту `3eaacc8`; следующий коммит обновляет только текст отчёта и README.
+коммиту `bf2d88f`; последующая документация не изменяет проверенный код.

@@ -41,14 +41,14 @@ class AiMentorPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(14)
         heading = QHBoxLayout()
-        heading.addWidget(create_label("ИИ-наставник", "storyTitle"), 1)
+        heading.addWidget(create_label("Наставник", "storyTitle"), 1)
         self.mode = create_label("Локальный наставник — офлайн", "muted")
         self.mode.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         heading.addWidget(self.mode, 1)
         layout.addLayout(heading)
         layout.addWidget(
             create_label(
-                "В DeepSeek отправляются учебная ситуация и вопрос. "
+                "Во внешний API отправляются учебная ситуация и вопрос. "
                 "Не вводите реальные пароли и личные данные. ИИ может ошибаться.",
                 "muted",
             )
@@ -167,11 +167,13 @@ class AiMentorPanel(QWidget):
             self.usage.setText(f"Получено токенов за сеанс: {self.total_tokens}.")
             return
         self.mode.setText(
-            "DeepSeek AI — онлайн" if reply.online else "Локальный наставник — офлайн"
+            f"{getattr(self.client, 'display_name', 'DeepSeek AI')} — онлайн"
+            if reply.online
+            else "Локальный наставник — офлайн"
         )
         self.answer.setPlainText(reply.text)
         self.status.setText(
-            reply.error or "Ответ DeepSeek получен. Сверяйте его с результатами симуляции."
+            reply.error or "Ответ API получен. Сверяйте его с результатами симуляции."
         )
         if reply.usage is not None:
             self.usage.setText(

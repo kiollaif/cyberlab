@@ -76,7 +76,7 @@ class WorkspaceNavigation(QWidget):
             "comparison": "Сравнение",
             "sessions": "Прохождения",
             "computer": "Компьютер",
-            "mentor": "ИИ-наставник",
+            "mentor": "Наставник",
             "help": "Как это работает",
         }
         for name, title in self.titles.items():

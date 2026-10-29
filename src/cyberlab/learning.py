@@ -49,12 +49,15 @@ def decision_rating(before: ComputerState, after: ComputerState) -> str:
         after.risk > before.risk
         or (after.credentials_exposed and not before.credentials_exposed)
         or (after.files_encrypted and not before.files_encrypted)
+        or (after.malware_active and not before.malware_active)
     ):
         return "Риск вырос"
     if (
         after.risk < before.risk
         or (after.email_inspected and not before.email_inspected)
         or (after.email_quarantined and not before.email_quarantined)
+        or (after.source_verified and not before.source_verified)
+        or (after.threat_blocked and not before.threat_blocked)
     ):
         return "Полезное решение"
     return "Без изменения риска"

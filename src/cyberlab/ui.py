@@ -285,6 +285,11 @@ class MainWindow(QMainWindow):
             self.show_menu()
 
         self._perform(select)
+        self.scenario_selector.blockSignals(True)
+        self.scenario_selector.setCurrentIndex(
+            self.scenario_selector.findData(self.lab.scenario.id)
+        )
+        self.scenario_selector.blockSignals(False)
 
     def _export_report(self) -> None:
         filename, _ = QFileDialog.getSaveFileName(
@@ -455,6 +460,7 @@ class MainWindow(QMainWindow):
 
     def _open_comparison(self) -> None:
         def show_comparison() -> None:
+            self.computer.set_scenario(self.lab.scenario)
             sessions = list(reversed(self.lab.repository.sessions(self.lab.scenario.id)))
             numbers = {session.id: index for index, session in enumerate(sessions, 1)}
             entries = []

@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, OpenAI
 
 from cyberlab.ai_context import MAX_CONTEXT_CHARS, MentorContext
+from cyberlab.api_config import ProviderConfig
+from cyberlab.mentor import answer_local_question
 
 MODEL = "deepseek-flash"
 BASE_URL = "https://api.deepseek.com"
@@ -53,26 +55,52 @@ def clean_question(question: str) -> str:
     text = question[:MAX_QUESTION_CHARS]
     text = re.sub(r"[\w.+-]+@[\w.-]+\.[\w-]+", "[адрес скрыт]", text)
     text = re.sub(r"sk-[\w-]{8,}", "[ключ скрыт]", text)
-    text = re.sub(r"(?i)(пароль\s*[:=]\s*)\S+", r"\1[скрыт]", text)
+    text = re.sub(
+        r"(?i)((?:пароль|password|api[_ -]?key|token|токен|ключ)\s*[:=]\s*)\S+",
+        r"\1[скрыт]",
+        text,
+    )
     return re.sub(r"\+?\d[\d ()-]{8,}\d", "[номер скрыт]", text)
 
 
 class DeepSeekClient:
-    def __init__(self, api_key: str | None = None, sdk_factory=None) -> None:
+    """Общий OpenAI-совместимый клиент; имя сохранено для прежнего кода и тестов."""
+
+    def __init__(
+        self, api_key: str | None = None, sdk_factory=None, config: ProviderConfig | None = None
+    ) -> None:
+        self.configuration_error = ""
+        try:
+            self.config = config or ProviderConfig.from_environment()
+        except ValueError as error:
+            self.config = ProviderConfig(provider="local", label="Локальный наставник")
+            self.configuration_error = str(error)
         self._api_key = (
-            os.environ.get("DEEPSEEK_API_KEY", "") if api_key is None else api_key
+            os.environ.get(self.config.key_env, "") if api_key is None else api_key
         ).strip()
         self._sdk_factory = sdk_factory or OpenAI
 
     @property
     def configured(self) -> bool:
-        return bool(self._api_key)
+        return self.config.provider != "local" and bool(self._api_key)
+
+    @property
+    def display_name(self) -> str:
+        return self.config.label
 
     def answer(self, context: MentorContext, task: str, question: str = "") -> MentorReply:
         fallback = context.fallback(task)
         if not self.configured:
+            if task == "question":
+                fallback = answer_local_question(question, context.local_state)
             return MentorReply(
-                fallback, error="Ключ DEEPSEEK_API_KEY не задан. Доступны локальные объяснения."
+                fallback,
+                error=self.configuration_error
+                or (
+                    "Включён локальный режим. Запросы API отключены."
+                    if self.config.provider == "local"
+                    else f"Ключ {self.config.key_env} не задан. Доступны локальные объяснения."
+                ),
             )
         instruction = TASKS.get(task, TASKS["question"])
         message = (
@@ -84,18 +112,22 @@ class DeepSeekClient:
             # SDK не повторяет платный запрос автоматически при ошибках.
             with self._sdk_factory(
                 api_key=self._api_key,
-                base_url=BASE_URL,
+                base_url=self.config.base_url,
                 timeout=TIMEOUT_SECONDS,
                 max_retries=0,
             ) as sdk:
                 response = sdk.chat.completions.create(
-                    model=MODEL,
+                    model=self.config.model,
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": message},
                     ],
                     max_tokens=MAX_ANSWER_TOKENS,
-                    extra_body={"thinking": {"type": "disabled"}},
+                    **(
+                        {"extra_body": {"thinking": {"type": "disabled"}}}
+                        if self.config.provider == "deepseek"
+                        else {}
+                    ),
                 )
             text = response.choices[0].message.content
             if not isinstance(text, str) or not text.strip():
@@ -129,4 +161,6 @@ class DeepSeekClient:
         except (APIError, ValueError, IndexError, TypeError, AttributeError):
             error = "Не удалось получить понятный ответ DeepSeek. Показано локальное объяснение."
         # Не выводим исключение SDK: в нём могут находиться тело запроса и служебные данные.
+        if self.config.provider != "deepseek":
+            error = error.replace("DeepSeek", "Поставщик API")
         return MentorReply(fallback, error=error)

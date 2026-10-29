@@ -105,7 +105,9 @@ class HistoryRepository:
         ).fetchall()
         return [Session(row["id"], row["scenario_id"], row["active_entry_id"]) for row in rows]
 
-    def create_session(self, scenario_id: str, start_node: str) -> Session:
+    def create_session(
+        self, scenario_id: str, start_node: str, initial_state: ComputerState | None = None
+    ) -> Session:
         session_id = uuid4().hex
         entry_id = uuid4().hex
         created_at = datetime.now(UTC).isoformat()
@@ -116,7 +118,7 @@ class HistoryRepository:
             choice_id=None,
             choice_title="Начало сценария",
             node_id=start_node,
-            state=ComputerState(),
+            state=initial_state if initial_state is not None else ComputerState(),
             created_at=created_at,
         )
         with self.connection:

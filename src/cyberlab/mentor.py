@@ -3,12 +3,40 @@
 Модуль только читает снимки: он не выбирает решения, не меняет риск и не пишет в БД.
 """
 
-from cyberlab.domain import ComputerState, compare_states
+from cyberlab.domain import ComputerState, Scenario, compare_states
 
 
-def explain_state(state: ComputerState) -> str:
+def explain_state(state: ComputerState, scenario: Scenario | None = None) -> str:
     """Объяснить наблюдаемые последствия текущей ветки простыми словами."""
     paragraphs = [f"Учебный риск: {state.risk}/100. Это условная шкала сценария."]
+    if scenario is not None and scenario.kind != "phishing":
+        paragraphs.append(state.events[-1])
+        paragraphs.append(
+            "Учебный пароль раскрыт." if state.credentials_exposed else "Учебный пароль не раскрыт."
+        )
+        if state.malware_active:
+            paragraphs.append(
+                "В модели работает подозрительная программа. Нужна помощь специалиста."
+            )
+        if state.files_encrypted:
+            paragraphs.append("Виртуальные файлы недоступны. Реальные файлы не изменялись.")
+        if state.threat_blocked:
+            paragraphs.append(
+                "Угроза остановлена в этом снимке; прошлые события остаются в истории."
+            )
+        if scenario.kind == "usb":
+            paragraphs.append(
+                "Проверку неизвестного устройства поручают специалисту, не запуская файлы."
+            )
+        elif scenario.kind == "attachment":
+            paragraphs.append(
+                "Не разрешайте макросы неожиданному документу без проверки источника."
+            )
+        else:
+            paragraphs.append(
+                "Проверяйте точный домен. HTTPS сам по себе не подтверждает владельца."
+            )
+        return "\n\n".join(paragraphs)
 
     if state.credentials_exposed:
         paragraphs.append(
@@ -43,10 +71,12 @@ def explain_state(state: ComputerState) -> str:
     return "\n\n".join(paragraphs)
 
 
-def explain_comparison(left: ComputerState, right: ComputerState) -> str:
+def explain_comparison(
+    left: ComputerState, right: ComputerState, scenario: Scenario | None = None
+) -> str:
     """Описать разницу A → B по тем же пяти показателям, что и таблица интерфейса."""
     differences = []
-    for row in compare_states(left, right):
+    for row in compare_states(left, right, scenario):
         if row.different:
             differences.append(f"{row.label}: A — {row.left}; B — {row.right}.")
 
@@ -61,6 +91,14 @@ def explain_comparison(left: ComputerState, right: ComputerState) -> str:
     elif right.risk > left.risk:
         differences.append("В ветке B учебный риск выше, чем в A.")
     return "\n\n".join(differences)
+
+
+def explain_step(scenario: Scenario, before, after) -> str:
+    """Объяснение берётся у уже выбранного действия, не у будущих узлов графа."""
+    for choice in scenario.node(before.node_id).choices:
+        if choice.id == after.choice_id and choice.explanation:
+            return choice.explanation
+    return explain_decision(after.choice_id, before.state, after.state)
 
 
 def explain_decision(choice_id: str | None, before: ComputerState, after: ComputerState) -> str:

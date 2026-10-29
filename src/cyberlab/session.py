@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 
-from cyberlab.domain import Scenario, ScenarioNode
+from cyberlab.domain import ComputerState, Scenario, ScenarioNode
 from cyberlab.scenarios import PHISHING
 from cyberlab.storage import HistoryEntry, HistoryRepository
 
@@ -10,11 +10,17 @@ from cyberlab.storage import HistoryEntry, HistoryRepository
 class LabSession:
     def __init__(self, repository: HistoryRepository, scenario: Scenario = PHISHING) -> None:
         self.repository = repository
-        self.scenario = scenario
-        saved = repository.latest_session(scenario.id)
-        self.session = saved or repository.create_session(scenario.id, scenario.start_node)
-        self.active = repository.entry(self.session.active_entry_id, self.session.id)
-        scenario.node(self.active.node_id)
+        self.switch_scenario(scenario)
+
+    def switch_scenario(self, scenario: Scenario) -> None:
+        """Открыть последнюю тренировку выбранного сценария, не затрагивая остальные."""
+        saved = self.repository.latest_session(scenario.id)
+        session = saved or self.repository.create_session(
+            scenario.id, scenario.start_node, ComputerState(events=(scenario.initial_event,))
+        )
+        active = self.repository.entry(session.active_entry_id, session.id)
+        scenario.node(active.node_id)
+        self.scenario, self.session, self.active = scenario, session, active
 
     @property
     def node(self) -> ScenarioNode:
@@ -49,7 +55,11 @@ class LabSession:
         return self.active
 
     def new_session(self) -> None:
-        self.session = self.repository.create_session(self.scenario.id, self.scenario.start_node)
+        self.session = self.repository.create_session(
+            self.scenario.id,
+            self.scenario.start_node,
+            ComputerState(events=(self.scenario.initial_event,)),
+        )
         self.active = self.repository.entry(self.session.active_entry_id, self.session.id)
 
     def open_session(self, session_id: str) -> None:

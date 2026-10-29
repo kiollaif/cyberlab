@@ -1,5 +1,6 @@
 """Первый сценарий. Все адреса вымышлены, последствия существуют только в модели."""
 
+from cyberlab.additional_scenarios import ATTACHMENT, FAKE_WEBSITE, USB
 from cyberlab.domain import Choice, Scenario, ScenarioNode, StateChange
 
 PHISHING = Scenario(
@@ -154,3 +155,13 @@ PHISHING = Scenario(
         ),
     ),
 )
+
+# Порядок определяет каталог в интерфейсе. Опубликованный phishing-v1 остаётся первым.
+SCENARIOS = (PHISHING, ATTACHMENT, FAKE_WEBSITE, USB)
+
+
+def get_scenario(scenario_id: str) -> Scenario:
+    for scenario in SCENARIOS:
+        if scenario.id == scenario_id:
+            return scenario
+    raise ValueError(f"Сценарий {scenario_id!r} не установлен.")

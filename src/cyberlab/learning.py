@@ -63,11 +63,16 @@ def decision_rating(before: ComputerState, after: ComputerState) -> str:
 def state_summary(state: ComputerState) -> str:
     """Короткий итог по наблюдаемым данным, без прогноза будущих событий."""
     if state.files_encrypted:
-        return "Учебный пароль раскрыт, доступ к виртуальным файлам потерян."
+        password = "Учебный пароль раскрыт" if state.credentials_exposed else "Пароль не раскрыт"
+        return f"{password}, доступ к виртуальным файлам потерян."
+    if state.malware_active:
+        return "В модели работает подозрительная программа. Файлы пока доступны."
     if state.credentials_exposed:
         return "Учебный пароль раскрыт. Виртуальные файлы пока доступны."
     if state.email_quarantined:
         return "Письмо изолировано. Пароль и виртуальные файлы защищены."
+    if state.threat_blocked:
+        return "Угроза остановлена. Пароль и виртуальные файлы защищены."
     if state.browser_open:
         return "Открыта страница из письма. Учебный пароль ещё не отправлен."
-    return "Пароль и файлы защищены. Подозрительное письмо требует решения."
+    return "Пароль и файлы защищены. Источник требует проверки."

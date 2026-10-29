@@ -27,6 +27,12 @@ class ComputerState:
     email_inspected: bool = False
     browser_open: bool = False
     events: tuple[str, ...] = ("Получено подозрительное письмо от службы поддержки.",)
+    attachment_opened: bool = False
+    macros_enabled: bool = False
+    usb_connected: bool = False
+    malware_active: bool = False
+    source_verified: bool = False
+    threat_blocked: bool = False
 
     def __post_init__(self) -> None:
         if not 0 <= self.risk <= 100:
@@ -44,6 +50,12 @@ class StateChange:
     email_quarantined: bool | None = None
     email_inspected: bool | None = None
     browser_open: bool | None = None
+    attachment_opened: bool | None = None
+    macros_enabled: bool | None = None
+    usb_connected: bool | None = None
+    malware_active: bool | None = None
+    source_verified: bool | None = None
+    threat_blocked: bool | None = None
 
     def apply(self, state: ComputerState, event: str) -> ComputerState:
         """Создать новый снимок с изменениями и дополнительной записью журнала."""
@@ -68,6 +80,7 @@ class Choice:
     next_node: str
     event: str
     change: StateChange = StateChange()
+    explanation: str = ""
 
 
 @dataclass(frozen=True)
@@ -92,6 +105,14 @@ class Scenario:
     title: str
     start_node: str
     nodes: tuple[ScenarioNode, ...]
+    kind: str = "phishing"
+    summary: str = "Срочное письмо и чужая ссылка: проверьте источник перед отправкой данных."
+    initial_event: str = "Получено подозрительное письмо от службы поддержки."
+    mail_subject: str = "Срочно подтвердите пароль"
+    mail_body: str = "Ваш пароль истекает через 15 минут. Подтвердите учётную запись."
+    sender_address: str = "help@cyberlab-support.invalid"
+    site_address: str = "https://login.cyberlab-check.invalid"
+    artifact: str = ""
 
     def node(self, node_id: str) -> ScenarioNode:
         for node in self.nodes:
@@ -123,7 +144,9 @@ class ComparisonRow:
         return self.left != self.right
 
 
-def compare_states(left: ComputerState, right: ComputerState) -> tuple[ComparisonRow, ...]:
+def compare_states(
+    left: ComputerState, right: ComputerState, scenario: Scenario | None = None
+) -> tuple[ComparisonRow, ...]:
     """Те же понятные показатели используются в интерфейсе и автоматических тестах."""
 
     def display_values(state: ComputerState) -> tuple[str, ...]:
@@ -132,10 +155,20 @@ def compare_states(left: ComputerState, right: ComputerState) -> tuple[Compariso
             "Раскрыты" if state.credentials_exposed else "Защищены",
             "Зашифрованы" if state.files_encrypted else "Доступны",
             "Подключена" if state.network_connected else "Отключена",
-            "В карантине" if state.email_quarantined else "Во входящих",
+            (
+                "Активна"
+                if state.malware_active
+                else "Остановлена"
+                if state.threat_blocked
+                else "Запуск не зафиксирован"
+            )
+            if scenario is not None and scenario.kind != "phishing"
+            else ("В карантине" if state.email_quarantined else "Во входящих"),
         )
 
     labels = ("Учебный риск", "Учётные данные", "Файлы", "Сеть", "Письмо")
+    if scenario is not None and scenario.kind != "phishing":
+        labels = (*labels[:4], "Учебная угроза")
     comparison_rows = []
     # zip берёт по одному элементу из каждого набора в одинаковом порядке.
     for label, left_value, right_value in zip(

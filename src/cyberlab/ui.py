@@ -4,8 +4,10 @@ import sqlite3
 from collections.abc import Callable
 from datetime import datetime
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QIODevice, QSaveFile, QSettings, Qt
 from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QListWidget,
@@ -21,7 +23,9 @@ from cyberlab.ai_context import build_context
 from cyberlab.ai_panel import AiMentorPanel
 from cyberlab.learning import history_path
 from cyberlab.navigation import WorkspaceNavigation
+from cyberlab.reports import build_report
 from cyberlab.review_pages import ComparisonPage, DecisionsPage
+from cyberlab.scenarios import SCENARIOS, get_scenario
 from cyberlab.session import LabSession
 from cyberlab.simulation_pages import ConsequencePage, ResultsPage, SituationPage
 from cyberlab.styles import STYLESHEET
@@ -36,6 +40,12 @@ class MainWindow(QMainWindow):
         self.lab = lab
         # Настройки обучения отделены от снимков: схема старой SQLite остаётся v1.
         self.settings = settings if settings is not None else QSettings("CYBERLAB", "CYBERLAB")
+        scenario_id = self.settings.value("last_scenario", lab.scenario.id, type=str)
+        if scenario_id != lab.scenario.id:
+            try:
+                lab.switch_scenario(get_scenario(scenario_id))
+            except ValueError:
+                pass  # Удалённый/неизвестный сценарий не мешает открыть доступную тренировку.
         saved_id = self.settings.value("last_session", "", type=str)
         if any(session.id == saved_id for session in lab.repository.sessions(lab.scenario.id)):
             lab.open_session(saved_id)
@@ -116,6 +126,7 @@ class MainWindow(QMainWindow):
         self.results.compare_requested.connect(self._open_comparison)
         self.results.menu_requested.connect(self.show_menu)
         self.results.details_requested.connect(self._open_computer)
+        self.results.export_requested.connect(self._export_report)
         self.decisions.entry_requested.connect(self._go_to)
         self.decisions.alternative_requested.connect(self._try_alternative)
         self.decisions.root_requested.connect(self._return_to_start)
@@ -222,17 +233,17 @@ class MainWindow(QMainWindow):
         scenario_layout = QVBoxLayout(scenario_row)
         scenario_layout.setContentsMargins(0, 22, 0, 22)
         scenario_layout.setSpacing(12)
-        scenario_layout.addWidget(create_label("01  /  ФИШИНГ", "eyebrow"))
-        title = create_label(self.lab.scenario.title, "heading")
-        title.setStyleSheet("font-size: 18px; font-weight: 500;")
-        scenario_layout.addWidget(title)
-        scenario_layout.addWidget(
-            create_label(
-                "Срочное письмо, чужая ссылка и несколько вариантов действий. "
-                "Вернитесь к любому выбору и сравните результаты.",
-                "muted",
-            )
+        self.scenario_selector = QComboBox()
+        self.scenario_selector.setAccessibleName("Учебный сценарий")
+        for scenario in SCENARIOS:
+            self.scenario_selector.addItem(scenario.title, scenario.id)
+        self.scenario_selector.setCurrentIndex(
+            self.scenario_selector.findData(self.lab.scenario.id)
         )
+        self.scenario_selector.currentIndexChanged.connect(self._select_scenario)
+        scenario_layout.addWidget(self.scenario_selector)
+        self.scenario_description = create_label(self.lab.scenario.summary, "muted")
+        scenario_layout.addWidget(self.scenario_description)
         self.start_button = action_button("Начать симуляцию", primary=True)
         self.start_button.setObjectName("start_simulation")
         self.start_button.clicked.connect(self._start)
@@ -261,6 +272,45 @@ class MainWindow(QMainWindow):
         was_started = self.settings.value("last_session", "") == self.lab.session.id
         self.resume_button.setVisible(was_started or len(self.lab.entries) > 1)
         self._show(self.menu)
+
+    def _select_scenario(self, index: int) -> None:
+        def select() -> None:
+            self.lab.switch_scenario(get_scenario(self.scenario_selector.itemData(index)))
+            self.scenario_description.setText(self.lab.scenario.summary)
+            self.settings.setValue("last_scenario", self.lab.scenario.id)
+            self.settings.sync()
+            self.ai_mentor.set_context(
+                build_context(self.lab.scenario, self.lab.entries, self.lab.active)
+            )
+            self.show_menu()
+
+        self._perform(select)
+
+    def _export_report(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить учебный отчёт",
+            f"CYBERLAB-{self.lab.scenario.id}.txt",
+            "Текст UTF-8 (*.txt)",
+        )
+        if not filename:
+            return
+
+        def save() -> None:
+            self.results.export_status.clear()
+            data = build_report(self.lab.scenario, self.lab.entries, self.lab.active).encode(
+                "utf-8"
+            )
+            # QSaveFile сначала пишет временный файл: ошибка не повреждает прежний отчёт.
+            target = QSaveFile(filename)
+            if not target.open(QIODevice.OpenModeFlag.WriteOnly):
+                raise OSError(target.errorString())
+            if target.write(data) != len(data) or not target.commit():
+                target.cancelWriting()
+                raise OSError(target.errorString())
+            self.results.export_status.setText("Отчёт сохранён.")
+
+        self._perform(save)
 
     def _perform(self, action: Callable[[], object]) -> None:
         try:
@@ -300,6 +350,7 @@ class MainWindow(QMainWindow):
 
     def _remember_session(self) -> None:
         self.settings.setValue("last_session", self.lab.session.id)
+        self.settings.setValue("last_scenario", self.lab.scenario.id)
         self.settings.sync()
 
     def _choose(self, choice_id: str) -> None:
@@ -307,6 +358,7 @@ class MainWindow(QMainWindow):
             # Сначала транзакция. Если запись не удалась, остаёмся на ситуации.
             self.lab.choose(choice_id)
             self.settings.setValue("pending_feedback", self.lab.active.id)
+            self.settings.setValue(f"feedback/{self.lab.session.id}", self.lab.active.id)
             self._remember_session()
             self._display_active()
 
@@ -317,10 +369,16 @@ class MainWindow(QMainWindow):
         active = self.lab.active
         entries = self.lab.entries
         self.ai_mentor.set_context(build_context(self.lab.scenario, entries, active))
+        self.computer.set_scenario(self.lab.scenario)
         self.computer.render(active.state)
-        if active.parent_id and self.settings.value("pending_feedback", "") == active.id:
+        pending = self.settings.value(
+            f"feedback/{self.lab.session.id}", self.settings.value("pending_feedback", "")
+        )
+        if active.parent_id and pending == active.id:
             before = self.lab.repository.entry(active.parent_id, self.lab.session.id)
-            self.consequence.render(before, active, terminal=self.lab.node.terminal)
+            self.consequence.render(
+                before, active, terminal=self.lab.node.terminal, scenario=self.lab.scenario
+            )
             self._show(self.consequence)
         elif self.lab.node.terminal:
             self.results.render(self.lab.scenario, entries, active)
@@ -331,10 +389,12 @@ class MainWindow(QMainWindow):
 
     def _continue_after_decision(self) -> None:
         self.settings.remove("pending_feedback")
+        self.settings.remove(f"feedback/{self.lab.session.id}")
         self.settings.sync()
         self._perform(self._display_active)
 
     def _open_computer(self) -> None:
+        self.computer.set_scenario(self.lab.scenario)
         self.computer.render(self.lab.active.state)
         self._show(self.computer, remember=True)
 
@@ -380,6 +440,7 @@ class MainWindow(QMainWindow):
         def restore() -> None:
             self.lab.go_to(entry_id)
             self.settings.remove("pending_feedback")
+            self.settings.remove(f"feedback/{self.lab.session.id}")
             self._remember_session()
             self._display_active()
 

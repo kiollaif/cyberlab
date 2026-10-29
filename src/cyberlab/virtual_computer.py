@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QListWidget, QTabWidget, QTextEdit, QVBoxLayout, Q
 
 from cyberlab.domain import VIRTUAL_FILES, ComputerState
 from cyberlab.mentor import explain_comparison, explain_state
+from cyberlab.scenarios import PHISHING
 from cyberlab.ui_helpers import create_label, make_scrollable
 
 
@@ -14,6 +15,7 @@ class VirtualComputer(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.state = ComputerState()
+        self.scenario = PHISHING
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
@@ -35,19 +37,16 @@ class VirtualComputer(QWidget):
         self.mail_status = create_label("", "caption")
         self.mail_status.setObjectName("mail_status")
         mail_layout.addWidget(self.mail_status)
-        mail_layout.addWidget(create_label("Срочно подтвердите пароль", "heading"))
-        mail_layout.addWidget(
-            create_label("От: IT-поддержка · Кому: сотрудник@cyberlab.example", "muted")
-        )
-        mail_layout.addWidget(
-            create_label(
-                "Ваш пароль истекает через 15 минут. Подтвердите учётную запись, "
-                "чтобы сохранить доступ к проекту."
-            )
-        )
+        self.source_title = create_label("", "heading")
+        self.source_body = create_label()
+        mail_layout.addWidget(self.source_title)
+        mail_layout.addWidget(self.source_body)
         link = create_label("Текст ссылки: «Подтвердить учётную запись»", "muted")
         link.setToolTip("Действия с письмом выбираются в разделе «Симуляция».")
         mail_layout.addWidget(link)
+        self.source_link = link
+        self.artifact_state = create_label("", "muted")
+        mail_layout.addWidget(self.artifact_state)
         self.mail_details = create_label("", "muted")
         self.mail_details.setObjectName("mail_details")
         mail_layout.addWidget(self.mail_details)
@@ -88,7 +87,8 @@ class VirtualComputer(QWidget):
         browser_layout.addWidget(self.browser_status)
         self.browser_page = QWidget()
         page_layout = QVBoxLayout(self.browser_page)
-        page_layout.addWidget(create_label("login.cyberlab-check.invalid", "badge"))
+        self.browser_address = create_label("", "badge")
+        page_layout.addWidget(self.browser_address)
         page_layout.addWidget(create_label("Подтвердите учётную запись", "heading"))
         page_layout.addWidget(
             create_label(
@@ -120,6 +120,17 @@ class VirtualComputer(QWidget):
         mentor_layout.addStretch()
         self.tabs.addTab(make_scrollable(mentor_panel), "Наставник")
 
+    def set_scenario(self, scenario) -> None:
+        if scenario.id != self.scenario.id:
+            self.mentor_comparison.setText(
+                "Выберите два пути этого сценария в разделе «Сравнение»."
+            )
+        self.scenario = scenario
+        self.source_title.setText(scenario.mail_subject)
+        self.source_body.setText(scenario.mail_body)
+        self.source_link.setVisible(scenario.kind == "phishing")
+        self.browser_address.setText(scenario.site_address)
+
     def render(self, state: ComputerState) -> None:
         previous_state = self.state
         self.state = state
@@ -128,17 +139,40 @@ class VirtualComputer(QWidget):
             self.mentor_comparison.setText(
                 "Сравнение доступно в итогах и в разделе «Ваши решения»."
             )
-        self.mentor_state.setText(explain_state(state))
+        self.mentor_state.setText(explain_state(state, self.scenario))
         self.mail_status.setText(
             "КАРАНТИН · письмо изолировано" if state.email_quarantined else "ВХОДЯЩИЕ · 1 письмо"
         )
         self.mail_details.setText(
-            "От: help@cyberlab-support.invalid\n"
-            "Ссылка: https://login.cyberlab-check.invalid\n"
+            f"От: {self.scenario.sender_address}\n"
+            f"Ссылка: {self.scenario.site_address}\n"
             "Ожидаемый домен: cyberlab.example"
             if state.email_inspected
             else "Адрес отправителя скрыт за отображаемым именем. Выберите «Проверить письмо»."
         )
+        if self.scenario.kind != "phishing":
+            mail_kind = self.scenario.kind == "attachment"
+            self.tabs.setTabText(0, "Почта" if mail_kind else "Источник")
+            self.mail_status.setText("УЧЕБНЫЙ ОБЪЕКТ · " + self.scenario.artifact)
+            self.mail_details.setText(
+                self.scenario.sender_address
+                if mail_kind and state.source_verified
+                else "Проверка источника выполнена."
+                if state.source_verified
+                else "Источник ещё не проверен. Действия выбираются в разделе «Симуляция»."
+            )
+            self.artifact_state.setText(
+                f"Вложение: {'открыто' if state.attachment_opened else 'не открыто'} · "
+                f"Макросы: {'разрешены' if state.macros_enabled else 'не разрешены'}"
+                if mail_kind
+                else f"USB: {'подключён' if state.usb_connected else 'не подключён'}"
+                if self.scenario.kind == "usb"
+                else "Все страницы — макеты без настоящей сети."
+            )
+            self.artifact_state.show()
+        else:
+            self.artifact_state.hide()
+            self.tabs.setTabText(0, "Почта")
         self.journal.clear()
         self.journal.addItems(list(state.events))
         self.browser_status.setText(
@@ -199,4 +233,4 @@ class VirtualComputer(QWidget):
         )
 
     def render_comparison(self, left: ComputerState, right: ComputerState) -> None:
-        self.mentor_comparison.setText(explain_comparison(left, right))
+        self.mentor_comparison.setText(explain_comparison(left, right, self.scenario))

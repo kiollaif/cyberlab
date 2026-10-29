@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from cyberlab.domain import ComputerState, Scenario
 from cyberlab.learning import decision_rating, history_path
-from cyberlab.mentor import explain_comparison, explain_decision, explain_state
+from cyberlab.mentor import explain_comparison, explain_state, explain_step
 from cyberlab.storage import HistoryEntry
 
 MAX_CONTEXT_CHARS = 8000
@@ -40,6 +40,12 @@ def computer_data(state: ComputerState) -> dict:
         "email_quarantined": state.email_quarantined,
         "email_inspected": state.email_inspected,
         "browser_open": state.browser_open,
+        "attachment_opened": state.attachment_opened,
+        "macros_enabled": state.macros_enabled,
+        "usb_connected": state.usb_connected,
+        "malware_active": state.malware_active,
+        "source_verified": state.source_verified,
+        "threat_blocked": state.threat_blocked,
     }
 
 
@@ -70,10 +76,10 @@ def build_context(
     comparison: tuple[HistoryEntry, HistoryEntry] | None = None,
 ) -> MentorContext:
     path = history_path(entries, active.id)
-    decision = "Вы ещё не приняли решение.\n\n" + explain_state(active.state)
+    decision = "Вы ещё не приняли решение.\n\n" + explain_state(active.state, scenario)
     analysis = []
     for before, after in zip(path, path[1:], strict=False):
-        explanation = explain_decision(after.choice_id, before.state, after.state)
+        explanation = explain_step(scenario, before, after)
         analysis.append(
             f"{decision_rating(before.state, after.state)}: {after.choice_title}. {explanation}"
         )
@@ -85,14 +91,15 @@ def build_context(
         left, right = comparison
         data["comparison"] = [branch_data(scenario, entries, entry) for entry in comparison]
         key += f":{left.id}:{right.id}"
-        local_comparison = explain_comparison(left.state, right.state)
+        local_comparison = explain_comparison(left.state, right.state, scenario)
     # Не сериализуем Scenario целиком: будущих узлов, значений риска и событий
     # непройденных веток в запросе нет. Содержимое файлов ПК и идентификаторы БД не нужны.
     return MentorContext(
         key=key,
         payload=json.dumps(data, ensure_ascii=False)[:MAX_CONTEXT_CHARS],
-        local_state=explain_state(active.state),
+        local_state=explain_state(active.state, scenario),
         local_decision=decision,
-        local_analysis="\n\n".join(analysis) or "Решений пока нет. " + explain_state(active.state),
+        local_analysis="\n\n".join(analysis)
+        or "Решений пока нет. " + explain_state(active.state, scenario),
         local_comparison=local_comparison,
     )

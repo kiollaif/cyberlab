@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 
 from cyberlab.domain import Scenario, compare_states
 from cyberlab.learning import history_path, state_summary
-from cyberlab.mentor import explain_decision
+from cyberlab.mentor import explain_step
 from cyberlab.simulation_pages import StateOverview
 from cyberlab.storage import HistoryEntry
 from cyberlab.ui_helpers import action_button, create_label, create_panel, link_button
@@ -70,7 +70,7 @@ class DecisionsPage(QWidget):
         self.tree.clear()
         items = {}
         for entry in entries:
-            title = "Получено письмо · начало" if entry.parent_id is None else entry.choice_title
+            title = "Начало сценария" if entry.parent_id is None else entry.choice_title
             if scenario.node(entry.node_id).terminal:
                 title += " · итог"
             if entry.id == active.id:
@@ -260,7 +260,7 @@ class ComparisonPage(QWidget):
         if any(entry_id is None for entry_id in selected):
             return
         left, right = [self.entries_by_id[entry_id] for entry_id in selected]
-        rows = compare_states(left.state, right.state)
+        rows = compare_states(left.state, right.state, self.scenario)
         paths = [history_path(self.entries, entry.id) for entry in (left, right)]
         for column, entry in enumerate((left, right)):
             self.overviews[column].render(entry.state)
@@ -276,7 +276,7 @@ class ComparisonPage(QWidget):
                 steps.append(
                     f"{len(steps) + 1}. {after.choice_title} "
                     f"(риск {before.state.risk} → {after.state.risk})\n"
-                    + explain_decision(after.choice_id, before.state, after.state)
+                    + explain_step(self.scenario, before, after)
                 )
             self.routes[column].setText("\n\n".join(steps) or "Начало: решений ещё нет.")
         self.divergence.setText(self._describe_divergence(paths[0], paths[1]))

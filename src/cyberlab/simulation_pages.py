@@ -10,7 +10,7 @@ from cyberlab.learning import (
     remaining_decisions,
     risk_level,
 )
-from cyberlab.mentor import explain_decision, explain_state
+from cyberlab.mentor import explain_decision, explain_state, explain_step
 from cyberlab.storage import HistoryEntry
 from cyberlab.ui_helpers import (
     action_button,
@@ -53,6 +53,17 @@ class StateOverview(QWidget):
         files = "недоступны" if state.files_encrypted else "доступны"
         network = "подключена" if state.network_connected else "отключена"
         self.status.setText(f"Учебный пароль: {password} · Файлы: {files} · Сеть: {network}")
+        details = []
+        if state.attachment_opened:
+            details.append("Вложение открыто")
+        if state.macros_enabled:
+            details.append("Макросы разрешены")
+        if state.usb_connected:
+            details.append("USB подключён")
+        if state.malware_active:
+            details.append("Программа активна")
+        if details:
+            self.status.setText(self.status.text() + "\n" + " · ".join(details))
 
 
 class SituationPage(QWidget):
@@ -115,7 +126,7 @@ class SituationPage(QWidget):
             self.actions.addWidget(button)
         self.overview.render(active.state)
         self.mentor_toggle.setChecked(False)
-        self.mentor.setText(explain_state(active.state))
+        self.mentor.setText(explain_state(active.state, scenario))
 
 
 class ConsequencePage(QWidget):
@@ -157,10 +168,21 @@ class ConsequencePage(QWidget):
         layout.addLayout(controls)
         layout.addStretch()
 
-    def render(self, before: HistoryEntry, after: HistoryEntry, *, terminal: bool) -> None:
+    def render(
+        self,
+        before: HistoryEntry,
+        after: HistoryEntry,
+        *,
+        terminal: bool,
+        scenario: Scenario | None = None,
+    ) -> None:
         self.action.setText(after.choice_title)
         self.event.setText(after.state.events[-1])
-        self.reason.setText(explain_decision(after.choice_id, before.state, after.state))
+        self.reason.setText(
+            explain_step(scenario, before, after)
+            if scenario is not None
+            else explain_decision(after.choice_id, before.state, after.state)
+        )
         difference = after.state.risk - before.state.risk
         change = f"{difference:+d}" if difference else "без изменения"
         self.risk_change.setText(f"Риск: {before.state.risk} → {after.state.risk} / 100 ({change})")
@@ -175,6 +197,7 @@ class ResultsPage(QWidget):
     compare_requested = Signal()
     menu_requested = Signal()
     details_requested = Signal()
+    export_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -186,6 +209,13 @@ class ResultsPage(QWidget):
         layout.addWidget(self.title)
         self.overview = StateOverview()
         layout.addWidget(self.overview)
+        self.risk_history = create_label("", "muted")
+        layout.addWidget(self.risk_history)
+        self.export_button = link_button("Сохранить отчёт TXT")
+        self.export_button.clicked.connect(self.export_requested.emit)
+        layout.addWidget(self.export_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.export_status = create_label("", "caption")
+        layout.addWidget(self.export_status)
         controls = QHBoxLayout()
         controls.setSpacing(8)
         self.compare_button = action_button("Сравнить результаты", primary=True)
@@ -200,12 +230,20 @@ class ResultsPage(QWidget):
         controls.addStretch()
         layout.addLayout(controls)
         layout.addSpacing(12)
-        layout.addWidget(create_label("РАЗБОР РЕШЕНИЙ", "eyebrow"))
-        self.decisions = QVBoxLayout()
+        self.details_toggle = link_button("Разбор решений и альтернативы")
+        self.details_toggle.setCheckable(True)
+        layout.addWidget(self.details_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.details_body = QWidget()
+        self.decisions = QVBoxLayout(self.details_body)
+        self.decisions.setContentsMargins(0, 0, 0, 0)
         self.decisions.setSpacing(0)
-        layout.addLayout(self.decisions)
+        layout.addWidget(self.details_body)
         self.alternatives = create_label("", "muted")
+        self.details_toggle.toggled.connect(self.details_body.setVisible)
+        self.details_toggle.toggled.connect(self.alternatives.setVisible)
         layout.addWidget(self.alternatives)
+        self.details_body.hide()
+        self.alternatives.hide()
         layout.addStretch()
 
     def render(self, scenario: Scenario, entries: list[HistoryEntry], active: HistoryEntry) -> None:
@@ -213,6 +251,13 @@ class ResultsPage(QWidget):
         self.overview.render(active.state)
         clear_layout(self.decisions)
         path = history_path(entries, active.id)
+        self.details_toggle.setChecked(False)
+        self.export_status.clear()
+        self.risk_history.setText(
+            "Динамика риска: "
+            + " → ".join(str(entry.state.risk) for entry in path)
+            + f" · Решений: {len(path) - 1}"
+        )
         suggestions = []
         for before, after in zip(path, path[1:], strict=False):
             rating = decision_rating(before.state, after.state)
@@ -221,9 +266,7 @@ class ResultsPage(QWidget):
             contents.addWidget(
                 create_label(f"{rating} · Риск {before.state.risk} → {after.state.risk}", "caption")
             )
-            contents.addWidget(
-                create_label(explain_decision(after.choice_id, before.state, after.state), "muted")
-            )
+            contents.addWidget(create_label(explain_step(scenario, before, after), "muted"))
             self.decisions.addWidget(panel)
             if rating == "Риск вырос":
                 alternatives = [

@@ -44,7 +44,7 @@ def computer_data(state: ComputerState) -> dict:
         "macros_enabled": state.macros_enabled,
         "usb_connected": state.usb_connected,
         "malware_active": state.malware_active,
-        "source_verified": state.source_verified,
+        "source_checked": state.source_checked,
         "threat_blocked": state.threat_blocked,
     }
 

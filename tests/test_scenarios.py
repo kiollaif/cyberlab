@@ -98,7 +98,7 @@ def test_switching_scenarios_preserves_each_active_branch(tmp_path):
             "macros_enabled",
             "usb_connected",
             "malware_active",
-            "source_verified",
+            "source_checked",
             "threat_blocked",
         ):
             del old_fields[key]

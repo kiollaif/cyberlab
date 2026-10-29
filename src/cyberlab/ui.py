@@ -315,13 +315,18 @@ class MainWindow(QMainWindow):
                 raise OSError(target.errorString())
             self.results.export_status.setText("Отчёт сохранён.")
 
-        self._perform(save)
+        self._perform(save, error_title="Не удалось сохранить отчёт")
 
-    def _perform(self, action: Callable[[], object]) -> None:
+    def _perform(
+        self,
+        action: Callable[[], object],
+        *,
+        error_title: str = "Не удалось открыть или сохранить прохождение",
+    ) -> None:
         try:
             action()
         except (sqlite3.Error, ValueError, OSError) as error:
-            QMessageBox.critical(self, "Не удалось открыть или сохранить прохождение", str(error))
+            QMessageBox.critical(self, error_title, str(error))
 
     def _start(self) -> None:
         if not self.settings.value("tutorial_completed", False, type=bool):

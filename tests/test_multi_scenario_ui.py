@@ -91,3 +91,37 @@ def test_switching_keeps_unread_feedback_and_restores_scenario(qtbot, multi_wind
     assert restored.lab.scenario.id == "usb-v1"
     assert restored.lab.active.node_id == "connected"
     restored.close()
+
+
+def test_failed_export_does_not_report_success_or_change_history(
+    multi_window, tmp_path, monkeypatch
+):
+    from PySide6.QtWidgets import QMessageBox
+
+    window = multi_window
+    window.start_button.click()
+    window.situation.findChild(QPushButton, "choice_report").click()
+    window.consequence.continue_button.click()
+    before = window.lab.entries
+    errors = []
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args: errors.append(args))
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path), ""))
+    window.results.export_button.click()
+    assert errors and not window.results.export_status.text()
+    assert window.lab.entries == before
+
+
+def test_failed_scenario_creation_restores_selector(multi_window, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    window = multi_window
+    original = window.lab.active
+    window.lab.repository.connection.execute("""CREATE TRIGGER reject_new_scenario
+        BEFORE INSERT ON sessions BEGIN SELECT RAISE(ABORT,'Учебная ошибка сохранения'); END""")
+    errors = []
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args: errors.append(args))
+    window.scenario_selector.setCurrentIndex(3)
+    assert errors
+    assert window.lab.active == original
+    assert window.scenario_selector.currentData() == "phishing-v1"
+    assert window.lab.repository.sessions("usb-v1") == []

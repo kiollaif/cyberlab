@@ -156,9 +156,9 @@ class VirtualComputer(QWidget):
             self.mail_status.setText("УЧЕБНЫЙ ОБЪЕКТ · " + self.scenario.artifact)
             self.mail_details.setText(
                 self.scenario.sender_address
-                if mail_kind and state.source_verified
+                if mail_kind and state.source_checked
                 else "Проверка источника выполнена."
-                if state.source_verified
+                if state.source_checked
                 else "Источник ещё не проверен. Действия выбираются в разделе «Симуляция»."
             )
             self.artifact_state.setText(

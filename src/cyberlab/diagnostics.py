@@ -17,6 +17,8 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from cyberlab import __version__
 from cyberlab.desktop import application_icon, integrate_appimage
+from cyberlab.reports import build_report
+from cyberlab.scenarios import SCENARIOS
 from cyberlab.session import LabSession
 from cyberlab.storage import HistoryRepository
 from cyberlab.ui import MainWindow
@@ -24,6 +26,7 @@ from cyberlab.ui import MainWindow
 
 def run_smoke_test(app: QApplication, report_path: Path) -> int:
     os.environ.pop("DEEPSEEK_API_KEY", None)
+    os.environ["CYBERLAB_AI_PROVIDER"] = "local"
     network_attempts = []
 
     def reject_network(event, arguments):
@@ -97,12 +100,63 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                 assert window.ai_mentor.answer.toPlainText().strip()
                 assert "офлайн" in window.ai_mentor.mode.text()
                 assert window.lab.active == safe and window.lab.entries == entries
+                scenario_results = {}
+                for scenario in SCENARIOS[1:]:
+                    window.show_menu()
+                    window.scenario_selector.setCurrentIndex(
+                        window.scenario_selector.findData(scenario.id)
+                    )
+                    window.start_button.click()
+                    root = window.lab.active.id
+                    while not window.lab.node.terminal:
+                        preferred = (
+                            "open_attachment",
+                            "open_link",
+                            "connect",
+                            "enable_macros",
+                            "submit",
+                            "run",
+                        )
+                        choice = next(
+                            (c for c in window.lab.node.choices if c.id in preferred),
+                            window.lab.node.choices[-1],
+                        )
+                        window.situation.findChild(QPushButton, f"choice_{choice.id}").click()
+                        assert window.current_page is window.consequence
+                        window.consequence.continue_button.click()
+                    dangerous = window.lab.active
+                    assert dangerous.state.risk >= 90
+                    window._go_to(root)
+                    safe_choice = {
+                        "attachment": "quarantine",
+                        "website": "bookmark",
+                        "usb": "hand_over",
+                    }[scenario.kind]
+                    window.situation.findChild(QPushButton, f"choice_{safe_choice}").click()
+                    window.consequence.continue_button.click()
+                    safer = window.lab.active
+                    assert safer.state.risk == 0 and not safer.state.files_encrypted
+                    window.results.compare_button.click()
+                    assert {c.currentData() for c in window.comparison.selectors} == {
+                        dangerous.id,
+                        safer.id,
+                    }
+                    text = build_report(scenario, window.lab.entries, safer)
+                    export = folder / "Отчёт.txt"
+                    export.write_text(text, encoding="utf-8")
+                    assert export.read_text(encoding="utf-8") == text
+                    assert scenario.title in text and dangerous.choice_title not in text
+                    scenario_results[scenario.id] = safer
+                report["checks"].append("four scenarios, rewind, alternatives, TXT report")
                 window.close()
                 repository.close()
                 restored = HistoryRepository(database)
                 try:
                     lab = LabSession(restored)
                     assert lab.active == safe and lab.entries == entries
+                    for scenario in SCENARIOS[1:]:
+                        lab.switch_scenario(scenario)
+                        assert lab.active == scenario_results[scenario.id]
                     assert (
                         restored.connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
                     )

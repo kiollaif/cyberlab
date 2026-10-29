@@ -56,7 +56,7 @@ def decision_rating(before: ComputerState, after: ComputerState) -> str:
         after.risk < before.risk
         or (after.email_inspected and not before.email_inspected)
         or (after.email_quarantined and not before.email_quarantined)
-        or (after.source_verified and not before.source_verified)
+        or (after.source_checked and not before.source_checked)
         or (after.threat_blocked and not before.threat_blocked)
     ):
         return "Полезное решение"

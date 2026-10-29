@@ -23,6 +23,7 @@ def verify(executable: Path, report: Path) -> None:
     # Сохраняем симлинк /usr/bin/cyberlab: проверяем именно путь ярлыка RPM.
     executable = executable.absolute()
     report = report.resolve()
+    report.unlink(missing_ok=True)
     with TemporaryDirectory(prefix="CyberLab launch with spaces ") as directory:
         work = Path(directory)
         env = dict(os.environ)

@@ -38,12 +38,10 @@ jobs:
         env:
           QT_QPA_PLATFORM: windows
         run: uv run --locked pytest --junitxml=desktop-tests.xml
-      - name: Bundle Python and Qt without a console
-        run: uv run --locked --group build python scripts/build_desktop.py
-      - name: Run standalone EXE without Python in PATH
+      - name: Build Windows EXE and run without Python in PATH
         env:
           QT_QPA_PLATFORM: windows
-        run: uv run --locked python scripts/verify_desktop.py dist/desktop/CyberLab.exe --report dist/desktop/windows-portable-smoke.json
+        run: ./scripts/build_windows.ps1
       - name: Build Russian per-user installer
         shell: pwsh
         run: |

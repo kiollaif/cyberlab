@@ -31,7 +31,7 @@ class ComputerState:
     macros_enabled: bool = False
     usb_connected: bool = False
     malware_active: bool = False
-    source_verified: bool = False
+    source_checked: bool = False
     threat_blocked: bool = False
 
     def __post_init__(self) -> None:
@@ -54,7 +54,7 @@ class StateChange:
     macros_enabled: bool | None = None
     usb_connected: bool | None = None
     malware_active: bool | None = None
-    source_verified: bool | None = None
+    source_checked: bool | None = None
     threat_blocked: bool | None = None
 
     def apply(self, state: ComputerState, event: str) -> ComputerState:

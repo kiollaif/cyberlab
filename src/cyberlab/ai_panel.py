@@ -48,7 +48,7 @@ class AiMentorPanel(QWidget):
         layout.addLayout(heading)
         layout.addWidget(
             create_label(
-                "Во внешний API отправляются учебная ситуация и вопрос. "
+                "Онлайн-наставник отправляет вопрос и учебную ситуацию своему сервису. "
                 "Не вводите реальные пароли и личные данные. ИИ может ошибаться.",
                 "muted",
             )
@@ -77,7 +77,7 @@ class AiMentorPanel(QWidget):
         send_row = QHBoxLayout()
         send_row.addWidget(create_label("До 1000 символов", "caption"))
         send_row.addStretch()
-        self.ask_button = action_button("Спросить ИИ", primary=True)
+        self.ask_button = action_button("Задать вопрос", primary=True)
         send_row.addWidget(self.ask_button)
         layout.addLayout(send_row)
         self.buttons = [
@@ -99,6 +99,14 @@ class AiMentorPanel(QWidget):
         self.status.hide()
         layout.addWidget(self.status)
         self.usage = create_label("", "caption")
+        self.usage.setToolTip(
+            "Токены — части текста, которыми сервис измеряет объём запроса и ответа."
+        )
+        self.usage_toggle = link_button("Статистика ответа")
+        self.usage_toggle.setCheckable(True)
+        self.usage_toggle.toggled.connect(self.usage.setVisible)
+        self.usage_toggle.hide()
+        layout.addWidget(self.usage_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
         self.usage.hide()
         layout.addWidget(self.usage)
         self._enable_buttons()
@@ -115,7 +123,9 @@ class AiMentorPanel(QWidget):
             self.answer.setPlainText(context.local_state)
             self.status.hide()
             self.usage.setText(f"Токенов за сеанс: {self.total_tokens}.")
-            self.usage.setVisible(self.total_tokens > 0)
+            self.usage_toggle.setVisible(self.total_tokens > 0)
+            self.usage_toggle.setChecked(False)
+            self.usage.hide()
         self._enable_buttons()
 
     def _limit_question(self) -> None:
@@ -173,20 +183,21 @@ class AiMentorPanel(QWidget):
         )
         self.answer.setPlainText(reply.text)
         self.status.setText(
-            reply.error or "Ответ API получен. Сверяйте его с результатами симуляции."
+            reply.error or "Ответ наставника получен. Сверяйте его с результатами тренировки."
         )
         if reply.usage is not None:
             self.usage.setText(
                 f"Токены: вход {reply.usage.prompt}, ответ {reply.usage.completion}, "
                 f"всего {reply.usage.total}. За сеанс: {self.total_tokens}."
             )
-            self.usage.show()
+            self.usage_toggle.show()
         else:
             self.usage.setText(
                 "Статистика запроса не получена. "
                 f"Ранее получено токенов за сеанс: {self.total_tokens}."
             )
-            self.usage.setVisible(self.total_tokens > 0 or self.client.configured)
+            self.usage_toggle.setVisible(self.total_tokens > 0 or self.client.configured)
+        self.usage.setVisible(self.usage_toggle.isChecked() and not self.usage_toggle.isHidden())
 
     def _finished(self) -> None:
         worker = self.worker

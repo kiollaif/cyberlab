@@ -6,9 +6,7 @@ from datetime import datetime
 
 from PySide6.QtCore import QIODevice, QSaveFile, QSettings, Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QFileDialog,
-    QFrame,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -28,10 +26,12 @@ from cyberlab.review_pages import ComparisonPage, DecisionsPage
 from cyberlab.scenarios import SCENARIOS, get_scenario
 from cyberlab.session import LabSession
 from cyberlab.simulation_pages import ConsequencePage, ResultsPage, SituationPage
+from cyberlab.storage import Session
 from cyberlab.styles import STYLESHEET
 from cyberlab.tutorial import TutorialPage
 from cyberlab.ui_helpers import action_button, create_label, link_button, make_scrollable
 from cyberlab.virtual_computer import VirtualComputer
+from cyberlab.welcome_pages import HomePage, TrainingPage
 
 
 class MainWindow(QMainWindow):
@@ -51,9 +51,8 @@ class MainWindow(QMainWindow):
             lab.open_session(saved_id)
         self.back_stack: list[QWidget] = []
         self.pages: dict[QWidget, QWidget] = {}
-        self.tutorial_starts_session = False
         self._close_when_ai_finishes = False
-        self.setWindowTitle("CYBERLAB — лаборатория решений")
+        self.setWindowTitle("CYBERLAB — тренажёр кибербезопасности")
         # Qt считает размеры в логических пикселях: при масштабе 150% их меньше.
         self.setMinimumSize(600, 400)
         available = self.screen().availableGeometry()
@@ -73,7 +72,7 @@ class MainWindow(QMainWindow):
         workspace_layout = QVBoxLayout(workspace)
         workspace_layout.setContentsMargins(0, 0, 0, 0)
         workspace_layout.setSpacing(0)
-        topbar = QWidget()
+        topbar = self.topbar = QWidget()
         topbar.setObjectName("topbar")
         topbar.setFixedHeight(52)
         header = QHBoxLayout(topbar)
@@ -91,6 +90,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(workspace, 1)
 
         self.menu = self._create_menu()
+        self.training = TrainingPage()
+        self.scenario_selector = self.training.selector
+        self.scenario_description = self.training.description
+        self.training_start_button = self.training.start_button
+        self.training_start_button.clicked.connect(lambda: self._perform(self._start_new_session))
+        self.training.resume_button.clicked.connect(lambda: self._perform(self._resume))
+        self._sync_scenario_selector()
+        self.scenario_selector.currentIndexChanged.connect(self._select_scenario)
         self.situation = SituationPage()
         self.consequence = ConsequencePage()
         self.results = ResultsPage()
@@ -104,6 +111,7 @@ class MainWindow(QMainWindow):
         self.saved_sessions = self._create_sessions_page()
         for page in (
             self.menu,
+            self.training,
             self.situation,
             self.consequence,
             self.results,
@@ -145,8 +153,8 @@ class MainWindow(QMainWindow):
         self.situation.decisions_button = self.navigation.buttons["decisions"]
         self.decisions.compare_button = self.navigation.buttons["comparison"]
         self.results.menu_button = self.menu_button
-        self.help_button = self.navigation.buttons["help"]
-        self.sessions_button = self.navigation.buttons["sessions"]
+        self.help_button = self.menu.help_button
+        self.sessions_button = self.menu.results_button
         self.show_menu()
 
     def resizeEvent(self, event) -> None:
@@ -160,7 +168,7 @@ class MainWindow(QMainWindow):
             return
         actions = {
             "home": self.show_menu,
-            "simulation": self._resume,
+            "simulation": self._open_learning,
             "decisions": self._open_decisions,
             "comparison": self._open_comparison,
             "sessions": self._open_sessions,
@@ -174,6 +182,22 @@ class MainWindow(QMainWindow):
         self._remember_session()
         self._display_active()
 
+    def _open_learning(self) -> None:
+        if (
+            len(self.lab.entries) > 1
+            or self.settings.value("last_session", "") == self.lab.session.id
+        ):
+            self._resume()
+        else:
+            self._open_training()
+
+    def _resume_saved(self) -> None:
+        target = self._resume_target()
+        if target is not None:
+            self.lab.open_session(target.id, scenario=get_scenario(target.scenario_id))
+            self._sync_scenario_selector()
+            self._resume()
+
     def _add_page(self, page: QWidget) -> None:
         # Каждому экрану доступна вертикальная прокрутка. Ограничиваем ширину
         # чтения, но не фиксируем высоту русского текста или карточек решений.
@@ -181,7 +205,7 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout(container)
         row.setContentsMargins(28, 30, 28, 24)
         row.addStretch()
-        page.setMaximumWidth(960)
+        page.setMaximumWidth(680 if isinstance(page, (HomePage, TrainingPage)) else 840)
         page.layout().setContentsMargins(0, 0, 0, 0)
         row.addWidget(page, 1)
         row.addStretch()
@@ -198,6 +222,7 @@ class MainWindow(QMainWindow):
         self.back_button.setVisible(bool(self.back_stack))
         sections = {
             self.menu: "home",
+            self.training: "simulation",
             self.situation: "simulation",
             self.consequence: "simulation",
             self.results: "simulation",
@@ -211,7 +236,13 @@ class MainWindow(QMainWindow):
         section = sections[page]
         self._current_section = section
         self.navigation.select(section)
-        self.breadcrumb.setText(f"Рабочее пространство  /  {self.navigation.titles[section]}")
+        self.navigation.setVisible(page is not self.menu)
+        self.topbar.setVisible(page is not self.menu)
+        self.breadcrumb.setText(
+            self.lab.scenario.title
+            if page in (self.situation, self.consequence, self.results)
+            else self.navigation.titles[section]
+        )
         page.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _back(self) -> None:
@@ -219,59 +250,61 @@ class MainWindow(QMainWindow):
             self._show(self.back_stack.pop())
 
     def _create_menu(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setSpacing(18)
-        layout.addWidget(create_label("Практика кибербезопасности", "storyTitle"))
-        layout.addWidget(
-            create_label("Распознавайте угрозы и проверяйте последствия своих решений.", "muted")
-        )
-        layout.addSpacing(24)
-        layout.addWidget(create_label("СЦЕНАРИИ", "eyebrow"))
-        scenario_row = QFrame()
-        scenario_row.setObjectName("scenarioRow")
-        scenario_layout = QVBoxLayout(scenario_row)
-        scenario_layout.setContentsMargins(0, 22, 0, 22)
-        scenario_layout.setSpacing(12)
-        self.scenario_selector = QComboBox()
-        self.scenario_selector.setAccessibleName("Учебный сценарий")
-        for scenario in SCENARIOS:
-            self.scenario_selector.addItem(scenario.title, scenario.id)
-        self.scenario_selector.setCurrentIndex(
-            self.scenario_selector.findData(self.lab.scenario.id)
-        )
-        self.scenario_selector.currentIndexChanged.connect(self._select_scenario)
-        scenario_layout.addWidget(self.scenario_selector)
-        self.scenario_description = create_label(self.lab.scenario.summary, "muted")
-        scenario_layout.addWidget(self.scenario_description)
-        self.start_button = action_button("Начать симуляцию", primary=True)
-        self.start_button.setObjectName("start_simulation")
-        self.start_button.clicked.connect(self._start)
-        actions = QHBoxLayout()
-        actions.setSpacing(8)
-        actions.addWidget(self.start_button)
-        self.resume_button = action_button("Продолжить прохождение")
+        page = HomePage()
+        self.start_button = page.start_button
+        self.start_button.clicked.connect(self._open_training)
+        self.resume_button = page.resume_button
         self.resume_button.setObjectName("resume_simulation")
-        self.resume_button.clicked.connect(lambda: self._perform(self._display_active))
-        actions.addWidget(self.resume_button)
-        actions.addStretch()
-        scenario_layout.addLayout(actions)
-        layout.addWidget(scenario_row)
-        layout.addStretch()
-        layout.addWidget(
-            create_label(
-                "Изолированная учебная среда. Настоящие файлы в безопасности.",
-                "caption",
-            )
-        )
+        self.resume_button.clicked.connect(lambda: self._perform(self._resume_saved))
+        page.results_button.clicked.connect(self._open_sessions)
+        page.help_button.clicked.connect(self._replay_tutorial)
         return page
 
     def show_menu(self) -> None:
         self.back_stack.clear()
-        # Возврат к корню не стирает прогресс: важен весь набор снимков, не только active.
-        was_started = self.settings.value("last_session", "") == self.lab.session.id
-        self.resume_button.setVisible(was_started or len(self.lab.entries) > 1)
+        self.navigation.collapse_tools()
+        target = self._resume_target()
+        self.resume_button.setEnabled(target is not None)
+        self.menu.resume_hint.setText(
+            f"Сохранено: {get_scenario(target.scenario_id).title}."
+            if target is not None
+            else "«Продолжить» станет доступно, когда вы начнёте тренировку."
+        )
         self._show(self.menu)
+
+    def _resume_target(self) -> Session | None:
+        """Просмотр другой темы не должен менять, какую тренировку продолжает главная."""
+        known_ids = {scenario.id for scenario in SCENARIOS}
+        saved_id = self.settings.value("last_session", "", type=str)
+        fallback = None
+        for session in self.lab.repository.sessions():
+            if session.scenario_id not in known_ids:
+                continue
+            if session.id == saved_id:
+                return session
+            if fallback is None and len(self.lab.repository.entries(session.id)) > 1:
+                fallback = session
+        return fallback
+
+    def _sync_scenario_selector(self) -> None:
+        self.scenario_selector.blockSignals(True)
+        self.scenario_selector.setCurrentIndex(
+            self.scenario_selector.findData(self.lab.scenario.id)
+        )
+        self.scenario_selector.blockSignals(False)
+        self.scenario_description.setText(self.lab.scenario.summary)
+        was_started = self.settings.value("last_session", "") == self.lab.session.id
+        has_progress = was_started or len(self.lab.entries) > 1
+        self.training.resume_button.setVisible(has_progress)
+        self.training.progress_hint.setText(
+            "В этой теме есть сохранённая тренировка. Новая не удалит прежние результаты."
+            if has_progress
+            else ""
+        )
+
+    def _open_training(self) -> None:
+        self._sync_scenario_selector()
+        self._show(self.training, remember=True)
 
     def _select_scenario(self, index: int) -> None:
         def select() -> None:
@@ -282,14 +315,10 @@ class MainWindow(QMainWindow):
             self.ai_mentor.set_context(
                 build_context(self.lab.scenario, self.lab.entries, self.lab.active)
             )
-            self.show_menu()
+            self._sync_scenario_selector()
 
         self._perform(select)
-        self.scenario_selector.blockSignals(True)
-        self.scenario_selector.setCurrentIndex(
-            self.scenario_selector.findData(self.lab.scenario.id)
-        )
-        self.scenario_selector.blockSignals(False)
+        self._sync_scenario_selector()
 
     def _export_report(self) -> None:
         filename, _ = QFileDialog.getSaveFileName(
@@ -328,26 +357,14 @@ class MainWindow(QMainWindow):
         except (sqlite3.Error, ValueError, OSError) as error:
             QMessageBox.critical(self, error_title, str(error))
 
-    def _start(self) -> None:
-        if not self.settings.value("tutorial_completed", False, type=bool):
-            self.tutorial_starts_session = True
-            self.tutorial.reset()
-            self._show(self.tutorial, remember=True)
-        else:
-            self._perform(self._start_new_session)
-
     def _replay_tutorial(self) -> None:
-        self.tutorial_starts_session = False
         self.tutorial.reset()
         self._show(self.tutorial, remember=True)
 
     def _finish_tutorial(self) -> None:
         self.settings.setValue("tutorial_completed", True)
         self.settings.sync()
-        if self.tutorial_starts_session:
-            self._perform(self._start_new_session)
-        else:
-            self.show_menu()
+        self.show_menu()
 
     def _start_new_session(self) -> None:
         # LabSession уже создаёт пустую тренировку при первом запуске.
@@ -480,16 +497,22 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setSpacing(16)
-        layout.addWidget(create_label("Прохождения", "storyTitle"))
-        layout.addWidget(create_label("Сохранённые тренировки и результаты.", "muted"))
+        layout.addWidget(create_label("Мои результаты", "storyTitle"))
+        layout.addWidget(
+            create_label("Все ваши темы. Выберите тренировку, чтобы вернуться к ней.", "muted")
+        )
         self.session_list = QListWidget()
         self.session_list.setWordWrap(True)
         self.session_list.setMinimumHeight(260)
         self.session_list.itemDoubleClicked.connect(lambda _item: self._open_selected_session())
         layout.addWidget(self.session_list)
-        self.empty_history = create_label("Пока нет решений. Начните первую симуляцию.", "badge")
+        self.session_list.setAccessibleName("Сохранённые тренировки всех тем")
+        self.empty_history = create_label("Здесь появятся ваши решения и результаты.", "muted")
         layout.addWidget(self.empty_history)
-        self.open_session_button = action_button("Открыть прохождение", primary=True)
+        self.empty_start_button = action_button("Начать обучение", primary=True)
+        self.empty_start_button.clicked.connect(self._open_training)
+        layout.addWidget(self.empty_start_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.open_session_button = action_button("Открыть тренировку", primary=True)
         self.open_session_button.clicked.connect(self._open_selected_session)
         layout.addWidget(self.open_session_button, alignment=Qt.AlignmentFlag.AlignLeft)
         return page
@@ -497,8 +520,11 @@ class MainWindow(QMainWindow):
     def _open_sessions(self) -> None:
         def show_sessions() -> None:
             self.session_list.clear()
-            sessions = list(reversed(self.lab.repository.sessions(self.lab.scenario.id)))
-            for number, session in reversed(list(enumerate(sessions, 1))):
+            known_scenarios = {scenario.id: scenario for scenario in SCENARIOS}
+            for session in self.lab.repository.sessions():
+                scenario = known_scenarios.get(session.scenario_id)
+                if scenario is None:
+                    continue
                 entries = self.lab.repository.entries(session.id)
                 if len(entries) == 1:
                     continue
@@ -508,19 +534,21 @@ class MainWindow(QMainWindow):
                     .astimezone()
                     .strftime("%d.%m.%Y %H:%M")
                 )
-                status = "Итог" if self.lab.scenario.node(active.node_id).terminal else "В процессе"
+                status = "Завершено" if scenario.node(active.node_id).terminal else "В процессе"
                 decisions = len(history_path(entries, active.id)) - 1
                 item = QListWidgetItem(
-                    f"Прохождение {number} · {date}\n"
-                    f"{status}: {self.lab.scenario.node(active.node_id).title} "
-                    f"· Риск {active.state.risk}/100"
+                    f"{scenario.title}\n{status} · {date} · Решений: {decisions}"
                 )
                 item.setToolTip(
                     f"Решений в пути: {decisions}. Всего сохранено шагов: {len(entries)}."
                 )
                 item.setData(Qt.ItemDataRole.UserRole, session.id)
+                item.setData(Qt.ItemDataRole.UserRole + 1, scenario.id)
                 self.session_list.addItem(item)
             self.empty_history.setVisible(self.session_list.count() == 0)
+            self.empty_start_button.setVisible(self.session_list.count() == 0)
+            self.session_list.setVisible(self.session_list.count() > 0)
+            self.open_session_button.setVisible(self.session_list.count() > 0)
             self.open_session_button.setEnabled(self.session_list.count() > 0)
             self.session_list.setCurrentRow(0)
             self._show(self.saved_sessions, remember=True)
@@ -533,7 +561,11 @@ class MainWindow(QMainWindow):
             return
 
         def open_saved() -> None:
-            self.lab.open_session(item.data(Qt.ItemDataRole.UserRole))
+            self.lab.open_session(
+                item.data(Qt.ItemDataRole.UserRole),
+                scenario=get_scenario(item.data(Qt.ItemDataRole.UserRole + 1)),
+            )
+            self._sync_scenario_selector()
             self._remember_session()
             self._display_active()
 

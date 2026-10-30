@@ -54,6 +54,7 @@ app.processEvents()
 assert abs(window.devicePixelRatioF() - scale) < 0.01
 assert (window.width(), window.height()) == (width, height)
 window.start_button.click()
+window.training_start_button.click()
 for choice in ('open_link', 'submit', 'ignore'):
     # Qt пересчитывает вложенные раскладки через очередь событий после показа.
     area = window.pages[window.current_page]

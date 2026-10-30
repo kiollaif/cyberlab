@@ -27,6 +27,7 @@ def workspace(qtbot, tmp_path):
 def test_sidebar_preserves_unread_consequence_and_all_snapshots(qtbot, workspace):
     window = workspace
     window.start_button.click()
+    window.training_start_button.click()
     window.situation.findChild(QPushButton, "choice_open_link").click()
     before = window.lab.entries
     active = window.lab.active
@@ -38,6 +39,11 @@ def test_sidebar_preserves_unread_consequence_and_all_snapshots(qtbot, workspace
         ("sessions", window.saved_sessions),
         ("simulation", window.consequence),
     ):
+        if (
+            section in window.navigation.tool_sections
+            and not window.navigation.buttons[section].isVisible()
+        ):
+            window.navigation.tools_toggle.click()
         qtbot.mouseClick(window.navigation.buttons[section], Qt.MouseButton.LeftButton)
         assert window.current_page is page
         assert window.navigation.buttons[section].isChecked()
@@ -54,13 +60,19 @@ def test_sidebar_preserves_unread_consequence_and_all_snapshots(qtbot, workspace
     assert window.lab.active == active
 
 
-def test_overview_only_offers_primary_start_and_optional_resume(workspace):
+def test_home_has_three_main_actions_and_optional_help(workspace):
     window = workspace
-    assert window.menu.findChildren(QPushButton) == [window.start_button, window.resume_button]
-    assert not window.resume_button.isVisible()
+    assert window.menu.findChildren(QPushButton) == [
+        window.start_button,
+        window.resume_button,
+        window.sessions_button,
+        window.help_button,
+    ]
+    assert window.resume_button.isVisible() and not window.resume_button.isEnabled()
     assert window.start_button.isVisible()
+    assert not window.navigation.isVisible() and not window.topbar.isVisible()
     assert window.start_button.width() < window.pages[window.menu].viewport().width() / 2
-    assert window.start_button.height() <= 40
+    assert window.start_button.height() >= 44
 
 
 @pytest.mark.parametrize("size", [(1366, 768), (640, 420)])
@@ -68,8 +80,8 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
     window = workspace
     window.resize(*size)
     qtbot.waitUntil(lambda: window.navigation.compact == (window.width() < 980))
+    window.start_button.click()
     for name in (
-        "home",
         "simulation",
         "decisions",
         "comparison",
@@ -79,6 +91,8 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
         "help",
     ):
         button = window.navigation.buttons[name]
+        if name in window.navigation.tool_sections and not button.isVisible():
+            window.navigation.tools_toggle.click()
         assert button.toolTip() == window.navigation.titles[name]
         assert not button.icon().isNull()
         qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
@@ -87,3 +101,5 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
         qtbot.waitUntil(lambda area=area: area.widget().width() <= area.viewport().width())
         assert page.isVisible()
     assert window.navigation.width() == (60 if window.width() < 980 else 202)
+    window.navigation.buttons["home"].click()
+    assert window.current_page is window.menu

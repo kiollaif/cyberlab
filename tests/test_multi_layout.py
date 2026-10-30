@@ -29,6 +29,9 @@ def check():
         area=window.pages[window.current_page]
         buttons=window.current_page.findChildren(QPushButton)
         valid=area.widget().width() <= area.viewport().width()
+        for label in window.current_page.findChildren(QLabel):
+            if label.isVisible() and label.wordWrap():
+                valid=valid and label.height()>=label.heightForWidth(label.width())
         for button in buttons:
             if button.isVisible() and button.text():
                 valid=valid and button.width()>=button.minimumSizeHint().width()
@@ -41,9 +44,11 @@ def check():
             window.lab.scenario.id,window.current_page,window.size().toTuple())
 for scenario in SCENARIOS:
     window.show_menu()
-    window.scenario_selector.setCurrentIndex(window.scenario_selector.findData(scenario.id))
     check()
     window.start_button.click()
+    window.scenario_selector.setCurrentIndex(window.scenario_selector.findData(scenario.id))
+    check()
+    window.training_start_button.click()
     while not window.lab.node.terminal:
         check()
         choices=window.lab.node.choices

@@ -27,6 +27,11 @@ def window(qtbot, tmp_path):
 
 
 def click(qtbot, window, button):
+    if (
+        button in (window.navigation.buttons[name] for name in window.navigation.tool_sections)
+        and not button.isVisible()
+    ):
+        window.navigation.tools_toggle.click()
     area = window.pages[window.current_page]
     if area.isAncestorOf(button):
         area.ensureWidgetVisible(button)
@@ -36,6 +41,8 @@ def click(qtbot, window, button):
 
 def start(qtbot, window):
     click(qtbot, window, window.start_button)
+    assert window.current_page is window.training
+    click(qtbot, window, window.training_start_button)
     assert window.current_page is window.situation
 
 
@@ -64,13 +71,13 @@ def open_decisions(qtbot, window):
 def test_first_menu_tutorial_skip_and_replay_do_not_write_decisions(qtbot, window):
     window.settings.setValue("tutorial_completed", False)
     assert window.current_page is window.menu
-    assert not window.resume_button.isVisible()
+    assert window.resume_button.isVisible() and not window.resume_button.isEnabled()
     original = window.lab.entries
     click(qtbot, window, window.sessions_button)
     assert window.empty_history.isVisible()
     assert not window.open_session_button.isEnabled()
     click(qtbot, window, window.back_button)
-    click(qtbot, window, window.start_button)
+    click(qtbot, window, window.help_button)
     assert window.current_page is window.tutorial
     for _ in range(2):
         click(qtbot, window, window.tutorial.next_button)
@@ -78,9 +85,8 @@ def test_first_menu_tutorial_skip_and_replay_do_not_write_decisions(qtbot, windo
     assert "увидели адрес" in window.tutorial.example.text()
     assert window.lab.entries == original
     click(qtbot, window, window.tutorial.skip_button)
-    assert window.current_page is window.situation
+    assert window.current_page is window.menu
     assert window.settings.value("tutorial_completed", type=bool)
-    click(qtbot, window, window.menu_button)
     click(qtbot, window, window.help_button)
     assert window.tutorial.step == 0
     for _ in range(4):

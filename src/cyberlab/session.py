@@ -62,13 +62,15 @@ class LabSession:
         )
         self.active = self.repository.entry(self.session.active_entry_id, self.session.id)
 
-    def open_session(self, session_id: str) -> None:
+    def open_session(self, session_id: str, *, scenario: Scenario | None = None) -> None:
         """Продолжить другую тренировку, сохранив обе истории и их указатели."""
-        for saved_session in self.repository.sessions(self.scenario.id):
+        target_scenario = scenario if scenario is not None else self.scenario
+        for saved_session in self.repository.sessions(target_scenario.id):
             if saved_session.id == session_id:
                 saved_entry = self.repository.entry(saved_session.active_entry_id, session_id)
-                self.scenario.node(saved_entry.node_id)
+                target_scenario.node(saved_entry.node_id)
                 # Проверяем данные до присваивания: ошибка не меняет текущую тренировку.
+                self.scenario = target_scenario
                 self.session = saved_session
                 self.active = saved_entry
                 return

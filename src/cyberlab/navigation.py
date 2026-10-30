@@ -65,23 +65,31 @@ class WorkspaceNavigation(QWidget):
         layout.setSpacing(4)
         self.brand = create_label("CYBERLAB", "brand", wrap=False)
         layout.addWidget(self.brand)
-        self.caption = create_label("Практикум безопасности", "sidebarCaption")
-        layout.addWidget(self.caption)
-        layout.addSpacing(30)
+        layout.addSpacing(24)
         self.buttons = {}
         self.titles = {
-            "home": "Обзор",
-            "simulation": "Симуляция",
+            "home": "Главная",
+            "simulation": "Обучение",
+            "sessions": "Мои результаты",
+            "mentor": "Наставник",
             "decisions": "Ваши решения",
             "comparison": "Сравнение",
-            "sessions": "Прохождения",
             "computer": "Компьютер",
-            "mentor": "Наставник",
-            "help": "Как это работает",
+            "help": "Помощь",
         }
+        self.tool_sections = ("decisions", "comparison", "computer")
+        self.tools_toggle = QPushButton("Инструменты")
+        self.tools_toggle.setAccessibleName("Показать инструменты тренировки")
+        self.tools_toggle.setProperty("role", "nav")
+        self.tools_toggle.setCheckable(True)
+        self.tools_toggle.setMinimumHeight(40)
+        self.tools_toggle.setIcon(navigation_icon("decisions"))
+        self.tools_toggle.setToolTip("Ваши решения, сравнение и учебный компьютер")
+        self.tools_toggle.toggled.connect(self._show_tools)
         for name, title in self.titles.items():
-            if name == "computer":
-                layout.addSpacing(22)
+            if name == "decisions":
+                layout.addSpacing(18)
+                layout.addWidget(self.tools_toggle)
             if name == "help":
                 layout.addStretch()
             button = QPushButton(title)
@@ -91,17 +99,24 @@ class WorkspaceNavigation(QWidget):
             button.setIcon(navigation_icon(name))
             button.setIconSize(QSize(18, 18))
             button.setCheckable(True)
-            button.setMinimumHeight(34)
+            button.setMinimumHeight(40)
             button.setToolTip(title)
             button.clicked.connect(lambda _checked=False, name=name: self.navigate.emit(name))
             layout.addWidget(button)
             self.buttons[name] = button
-        layout.addSpacing(12)
-        self.footer = create_label("Версия 0.1", "sidebarCaption")
-        layout.addWidget(self.footer)
+        self._show_tools(False)
         self.setFixedWidth(202)
 
+    def _show_tools(self, visible: bool) -> None:
+        for name in self.tool_sections:
+            self.buttons[name].setVisible(visible)
+
+    def collapse_tools(self) -> None:
+        self.tools_toggle.setChecked(False)
+
     def select(self, selected: str) -> None:
+        if selected in self.tool_sections:
+            self.tools_toggle.setChecked(True)
         for name, button in self.buttons.items():
             button.setChecked(name == selected)
             button.setIcon(navigation_icon(name, "#cecbf1" if name == selected else "#9999a5"))
@@ -112,8 +127,7 @@ class WorkspaceNavigation(QWidget):
         self.compact = compact
         self.setFixedWidth(60 if compact else 202)
         self.brand.setText("C" if compact else "CYBERLAB")
-        self.caption.setVisible(not compact)
-        self.footer.setVisible(not compact)
+        self.tools_toggle.setText("" if compact else "Инструменты")
         self.layout().setContentsMargins(8 if compact else 14, 24, 8 if compact else 14, 18)
         for name, button in self.buttons.items():
             button.setText("" if compact else self.titles[name])

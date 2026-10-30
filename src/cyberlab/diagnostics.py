@@ -63,6 +63,7 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                 assert "Копир" in QCoreApplication.translate("QWidgetTextControl", "&Copy")
                 report["checks"].append("window, bundled icon, Russian Qt translation")
                 window.start_button.click()
+                window.training_start_button.click()
                 for choice in ("open_link", "submit", "ignore"):
                     window.situation.findChild(QPushButton, f"choice_{choice}").click()
                     assert window.current_page is window.consequence
@@ -107,6 +108,7 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                         window.scenario_selector.findData(scenario.id)
                     )
                     window.start_button.click()
+                    window.training_start_button.click()
                     root = window.lab.active.id
                     while not window.lab.node.terminal:
                         preferred = (

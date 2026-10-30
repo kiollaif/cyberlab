@@ -47,6 +47,7 @@ def main() -> int:
         def run_checks() -> None:
             try:
                 window.start_button.click()
+                window.training_start_button.click()
                 for choice in ("open_link", "submit", "ignore"):
                     window.situation.findChild(QPushButton, f"choice_{choice}").click()
                     QTest.qWait(20)

@@ -55,7 +55,7 @@ def action_button(title: str, hint: str = "", *, primary: bool = False) -> QPush
     # Штатный QPushButton сам учитывает метрики шрифта и DPI платформы.
     # Вложенные надписи нужны только строкам выбора с двумя уровнями текста.
     button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    button.setMinimumHeight(32)
+    button.setMinimumHeight(40)
     return button
 
 
@@ -72,7 +72,7 @@ def choice_button(number: int, title: str, hint: str) -> QPushButton:
     button.setToolTip(hint)
     button.setProperty("role", "decision")
     layout = QHBoxLayout(button)
-    layout.setContentsMargins(12, 11, 12, 11)
+    layout.setContentsMargins(12, 14, 12, 14)
     layout.setSpacing(14)
     number_label = create_label(f"{number:02d}", "choiceNumber", wrap=False)
     number_label.setFixedWidth(24)

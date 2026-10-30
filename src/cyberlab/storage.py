@@ -97,11 +97,12 @@ class HistoryRepository:
             id=row["id"], scenario_id=row["scenario_id"], active_entry_id=row["active_entry_id"]
         )
 
-    def sessions(self, scenario_id: str) -> list[Session]:
-        """Все сохранённые тренировки этого сценария, начиная с последней."""
+    def sessions(self, scenario_id: str | None = None) -> list[Session]:
+        """Тренировки от новых к старым; без фильтра — результаты всех тем."""
+        condition = " WHERE scenario_id = ?" if scenario_id is not None else ""
         rows = self.connection.execute(
-            "SELECT * FROM sessions WHERE scenario_id = ? ORDER BY created_at DESC, rowid DESC",
-            (scenario_id,),
+            "SELECT * FROM sessions" + condition + " ORDER BY created_at DESC, rowid DESC",
+            (scenario_id,) if scenario_id is not None else (),
         ).fetchall()
         return [Session(row["id"], row["scenario_id"], row["active_entry_id"]) for row in rows]
 

@@ -20,6 +20,7 @@ def window(qtbot, tmp_path):
     qtbot.addWidget(widget)
     widget.show()
     widget.start_button.click()
+    widget.training_start_button.click()
     yield widget
     qtbot.waitUntil(lambda: not widget.ai_mentor.busy, timeout=5000)
     widget.close()
@@ -75,6 +76,10 @@ def test_background_request_does_not_freeze_ui_or_duplicate_or_write_database(qt
         assert panel.mode.text() == "DeepSeek AI — онлайн"
         assert "старом выборе" in panel.answer.toPlainText()
         assert "всего 15" in panel.usage.text()
+        assert not panel.usage.isVisible()
+        panel.usage_toggle.click()
+        assert panel.usage.isVisible()
+        assert "части текста" in panel.usage.toolTip()
         assert window.lab.entries == before
     finally:
         client.release.set()

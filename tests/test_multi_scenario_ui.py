@@ -28,8 +28,9 @@ def test_select_play_rewind_compare_and_export(
     qtbot, multi_window, scenario, tmp_path, monkeypatch
 ):
     window = multi_window
-    window.scenario_selector.setCurrentIndex(window.scenario_selector.findData(scenario.id))
     window.start_button.click()
+    window.scenario_selector.setCurrentIndex(window.scenario_selector.findData(scenario.id))
+    window.training_start_button.click()
     root = window.lab.active.id
     while not window.lab.node.terminal:
         # Выбираем ветку запуска, если она доступна; в остальных узлах — последний выбор.
@@ -72,19 +73,23 @@ def test_select_play_rewind_compare_and_export(
 def test_switching_keeps_unread_feedback_and_restores_scenario(qtbot, multi_window):
     window = multi_window
     window.start_button.click()
+    window.training_start_button.click()
     window.situation.findChild(QPushButton, "choice_open_link").click()
     original = window.lab.active
     window.show_menu()
-    window.scenario_selector.setCurrentIndex(3)
     window.start_button.click()
+    window.scenario_selector.setCurrentIndex(3)
+    window.training_start_button.click()
     window.situation.findChild(QPushButton, "choice_connect").click()
     window.consequence.continue_button.click()
     window.show_menu()
+    window.start_button.click()
     window.scenario_selector.setCurrentIndex(0)
     window._resume()
     assert window.current_page is window.consequence
     assert window.lab.active == original
     window.show_menu()
+    window.start_button.click()
     window.scenario_selector.setCurrentIndex(3)
     restored = MainWindow(LabSession(window.lab.repository), window.settings)
     qtbot.addWidget(restored)
@@ -100,11 +105,13 @@ def test_failed_export_does_not_report_success_or_change_history(
 
     window = multi_window
     window.start_button.click()
+    window.training_start_button.click()
     window.situation.findChild(QPushButton, "choice_report").click()
     window.consequence.continue_button.click()
     before = window.lab.entries
     errors = []
     monkeypatch.setattr(QMessageBox, "critical", lambda *args: errors.append(args))
+    window.start_button.click()
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path), ""))
     window.results.export_button.click()
     assert errors and not window.results.export_status.text()

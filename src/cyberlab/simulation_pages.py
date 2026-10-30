@@ -9,6 +9,7 @@ from cyberlab.learning import (
     history_path,
     remaining_decisions,
     risk_level,
+    state_summary,
 )
 from cyberlab.mentor import explain_decision, explain_state, explain_step
 from cyberlab.storage import HistoryEntry
@@ -87,12 +88,12 @@ class SituationPage(QWidget):
         layout.addWidget(self.title)
         layout.addWidget(self.description)
         layout.addSpacing(8)
-        layout.addWidget(create_label("ВАШЕ ДЕЙСТВИЕ", "eyebrow"))
+        layout.addWidget(create_label("Как вы поступите?", "heading"))
         self.actions = QVBoxLayout()
         self.actions.setSpacing(0)
         layout.addLayout(self.actions)
         layout.addSpacing(8)
-        self.overview = StateOverview()
+        self.overview = StateOverview(compact=True)
         layout.addWidget(self.overview)
         self.mentor_toggle = link_button("Подсказка наставника")
         self.mentor_toggle.setCheckable(True)
@@ -108,7 +109,7 @@ class SituationPage(QWidget):
         node = scenario.node(active.node_id)
         made = len(history_path(entries, active.id)) - 1
         remaining = remaining_decisions(scenario, node.id)
-        self.progress_text.setText(f"СЦЕНАРИЙ / ШАГ {made + 1}")
+        self.progress_text.setText(f"ШАГ {made + 1} · СИТУАЦИЯ И ВЫБОР")
         self.progress_text.setToolTip(
             f"{scenario.title}. Принято решений: {made}. До итога: не более {remaining}."
         )
@@ -149,7 +150,7 @@ class ConsequencePage(QWidget):
         layout.addSpacing(14)
         self.risk_change = create_label("", "heading")
         layout.addWidget(self.risk_change)
-        self.overview = StateOverview()
+        self.overview = StateOverview(compact=True)
         self.overview.risk.hide()  # Значения до/после уже показаны строкой выше.
         layout.addWidget(self.overview)
         self.next_step = create_label("", "caption")
@@ -187,7 +188,8 @@ class ConsequencePage(QWidget):
         change = f"{difference:+d}" if difference else "без изменения"
         self.risk_change.setText(f"Риск: {before.state.risk} → {after.state.risk} / 100 ({change})")
         self.overview.render(after.state)
-        self.next_step.setText("Ветка завершена. Далее — разбор решений." if terminal else "")
+        self.continue_button.setText("Посмотреть результат" if terminal else "Следующая ситуация")
+        self.next_step.setText("Тема пройдена. Дальше — итог ваших решений." if terminal else "")
         self.next_step.setVisible(terminal)
 
 
@@ -207,7 +209,9 @@ class ResultsPage(QWidget):
         layout.addWidget(create_label("ПРОХОЖДЕНИЕ ЗАВЕРШЕНО", "eyebrow"))
         self.title = create_label("", "storyTitle")
         layout.addWidget(self.title)
-        self.overview = StateOverview()
+        self.summary = create_label()
+        layout.addWidget(self.summary)
+        self.overview = StateOverview(compact=True)
         layout.addWidget(self.overview)
         self.risk_history = create_label("", "muted")
         layout.addWidget(self.risk_history)
@@ -218,17 +222,17 @@ class ResultsPage(QWidget):
         layout.addWidget(self.export_status)
         controls = QHBoxLayout()
         controls.setSpacing(8)
-        self.compare_button = action_button("Сравнить результаты", primary=True)
-        self.change_button = action_button("Изменить решение")
+        self.compare_button = action_button("Сравнить результаты")
+        self.change_button = action_button("Изменить решение", primary=True)
         self.retry_button = link_button("Заново", "Создать новое прохождение")
         self.compare_button.clicked.connect(self.compare_requested.emit)
         self.change_button.clicked.connect(self.decisions_requested.emit)
         self.retry_button.clicked.connect(self.retry_requested.emit)
-        controls.addWidget(self.compare_button)
         controls.addWidget(self.change_button)
-        controls.addWidget(self.retry_button)
+        controls.addWidget(self.compare_button)
         controls.addStretch()
         layout.addLayout(controls)
+        layout.addWidget(self.retry_button, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addSpacing(12)
         self.details_toggle = link_button("Разбор решений и альтернативы")
         self.details_toggle.setCheckable(True)
@@ -248,6 +252,7 @@ class ResultsPage(QWidget):
 
     def render(self, scenario: Scenario, entries: list[HistoryEntry], active: HistoryEntry) -> None:
         self.title.setText(scenario.node(active.node_id).title)
+        self.summary.setText(state_summary(active.state))
         self.overview.render(active.state)
         clear_layout(self.decisions)
         path = history_path(entries, active.id)

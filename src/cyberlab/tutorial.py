@@ -27,13 +27,13 @@ LESSONS = (
     (
         "Разберите последствие",
         "После выбора вы увидите, что случилось, почему и как изменился риск. "
-        "Кнопка «Продолжить» откроет следующий этап. Подробности компьютера необязательны.",
+        "Кнопка «Следующая ситуация» откроет следующий этап. Подробности компьютера необязательны.",
         "Пример: запросили сведения → получили адрес отправителя. Риск: 0 → 0. "
         "Сама проверка ничего не передаёт неизвестному отправителю.",
     ),
     (
         "Попробуйте иначе и сравните",
-        "Откройте «Ваши решения» слева и нажмите «На шаг назад». Вы вернётесь "
+        "Откройте «Инструменты» → «Ваши решения» слева и нажмите «На шаг назад». Вы вернётесь "
         "к выбору перед последним действием. Любой более ранний шаг доступен в дереве. "
         "Для сравнения откройте раздел «Сравнение».",
         "Начало\n├─ Первый выбор → сохранённый результат\n└─ Другой выбор → новый результат\n"
@@ -70,13 +70,13 @@ class TutorialPage(QWidget):
         self.previous_button.clicked.connect(lambda: self._move(-1))
         self.next_button = action_button("Далее", primary=True)
         self.next_button.clicked.connect(lambda: self._move(1))
-        self.finish_button = action_button("Завершить обучение", primary=True)
+        self.finish_button = action_button("На главную", primary=True)
         self.finish_button.clicked.connect(self.finished.emit)
         controls.addWidget(self.previous_button)
         controls.addWidget(self.next_button)
         controls.addWidget(self.finish_button)
         controls.addStretch()
-        self.skip_button = link_button("Пропустить обучение")
+        self.skip_button = link_button("Пропустить подсказки")
         self.skip_button.clicked.connect(self.finished.emit)
         controls.addWidget(self.skip_button)
         layout.addLayout(controls)

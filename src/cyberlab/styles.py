@@ -2,7 +2,7 @@
 
 STYLESHEET = """
 QWidget { background: #19191d; color: #dedee3; font-family: "Segoe UI", "Inter", sans-serif;
-          font-size: 13px; }
+          font-size: 14px; }
 QMainWindow, QWidget#root, QWidget#workspace { background: #19191d; }
 QWidget#sidebar { background: #141417; border-right: 1px solid #28282d; }
 QLabel { background: transparent; border: none; }
@@ -10,12 +10,15 @@ QLabel#brand { color: #ececf0; font-size: 14px; font-weight: 650; letter-spacing
 QLabel#sidebarCaption { color: #777780; font-size: 11px; }
 QLabel#eyebrow { color: #85858f; font-size: 11px; letter-spacing: 1px; }
 QLabel#heading { color: #dcdce2; font-size: 14px; font-weight: 600; }
-QLabel#storyTitle { color: #eeeeF2; font-size: 24px; font-weight: 600; }
-QLabel#muted, QLabel#badge { color: #92929d; font-size: 12px; }
-QLabel#caption { color: #777782; font-size: 11px; }
+QLabel#storyTitle { color: #eeeeF2; font-size: 26px; font-weight: 600; }
+QLabel#welcomeBrand { color: #f1f0f5; font-size: 38px; font-weight: 650; letter-spacing: 3px; }
+QLabel#welcomeSubtitle { color: #dedce9; font-size: 20px; font-weight: 500; }
+QLabel#welcomeDescription { color: #b3b3bf; font-size: 15px; }
+QLabel#muted, QLabel#badge { color: #aaaab6; font-size: 13px; }
+QLabel#caption { color: #9797a3; font-size: 12px; }
 QLabel#metricValue { color: #e7e7ed; font-size: 18px; font-weight: 600; }
-QLabel#buttonTitle { background: transparent; color: #dedee3; font-size: 13px; font-weight: 500; }
-QLabel#buttonHint { background: transparent; color: #858590; font-size: 12px; }
+QLabel#buttonTitle { background: transparent; color: #dedee3; font-size: 15px; font-weight: 500; }
+QLabel#buttonHint { background: transparent; color: #aaaab6; font-size: 13px; }
 QLabel#choiceNumber { color: #73737f; font-size: 12px; }
 QLabel#choiceArrow { color: #777782; font-size: 16px; }
 QLabel:disabled { color: #62626d; }
@@ -29,6 +32,7 @@ QPushButton { background: #25252c; border: 1px solid #36363f; border-radius: 5px
               padding: 6px 11px; text-align: left; }
 QPushButton:hover { background: #2d2d35; border-color: #45454f; }
 QPushButton:focus { border-color: #a6a4d9; }
+QPushButton[size="welcome"] { font-size: 15px; padding: 9px 18px; }
 QPushButton[role="primary"] { background: #aaa8df; color: #17161f; border: 1px solid #aaa8df; }
 QLabel#buttonTitle:disabled { color: #63636d; }
 QPushButton[role="primary"]:hover { background: #bab8eb; border-color: #bab8eb; }

@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from cyberlab.ui_helpers import create_label
 
@@ -60,7 +60,17 @@ class WorkspaceNavigation(QWidget):
         super().__init__()
         self.setObjectName("sidebar")
         self.compact = False
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        content.setObjectName("sidebarContent")
+        self.scroll_area.setWidget(content)
+        outer_layout.addWidget(self.scroll_area)
+        # На низком экране пункты прокручиваются, а не перекрывают друг друга.
+        layout = self.content_layout = QVBoxLayout(content)
         layout.setContentsMargins(14, 24, 14, 18)
         layout.setSpacing(4)
         self.brand = create_label("CYBERLAB", "brand", wrap=False)
@@ -128,6 +138,6 @@ class WorkspaceNavigation(QWidget):
         self.setFixedWidth(60 if compact else 202)
         self.brand.setText("C" if compact else "CYBERLAB")
         self.tools_toggle.setText("" if compact else "Инструменты")
-        self.layout().setContentsMargins(8 if compact else 14, 24, 8 if compact else 14, 18)
+        self.content_layout.setContentsMargins(4 if compact else 14, 24, 4 if compact else 14, 18)
         for name, button in self.buttons.items():
             button.setText("" if compact else self.titles[name])

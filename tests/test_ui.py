@@ -32,6 +32,8 @@ def click(qtbot, window, button):
         and not button.isVisible()
     ):
         window.navigation.tools_toggle.click()
+    if window.navigation.isAncestorOf(button):
+        window.navigation.scroll_area.ensureWidgetVisible(button)
     area = window.pages[window.current_page]
     if area.isAncestorOf(button):
         area.ensureWidgetVisible(button)

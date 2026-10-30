@@ -44,6 +44,7 @@ def test_sidebar_preserves_unread_consequence_and_all_snapshots(qtbot, workspace
             and not window.navigation.buttons[section].isVisible()
         ):
             window.navigation.tools_toggle.click()
+        window.navigation.scroll_area.ensureWidgetVisible(window.navigation.buttons[section])
         qtbot.mouseClick(window.navigation.buttons[section], Qt.MouseButton.LeftButton)
         assert window.current_page is page
         assert window.navigation.buttons[section].isChecked()
@@ -93,6 +94,7 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
         button = window.navigation.buttons[name]
         if name in window.navigation.tool_sections and not button.isVisible():
             window.navigation.tools_toggle.click()
+        window.navigation.scroll_area.ensureWidgetVisible(button)
         assert button.toolTip() == window.navigation.titles[name]
         assert not button.icon().isNull()
         qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
@@ -103,3 +105,31 @@ def test_sidebar_and_all_sections_fit_the_viewport(qtbot, workspace, size):
     assert window.navigation.width() == (60 if window.width() < 980 else 202)
     window.navigation.buttons["home"].click()
     assert window.current_page is window.menu
+
+
+@pytest.mark.parametrize("size", [(640, 420), (853, 480), (1280, 720)])
+def test_expanded_navigation_scrolls_without_overlapping_buttons(qtbot, workspace, size):
+    window = workspace
+    window.resize(*size)
+    window.start_button.click()
+    navigation = window.navigation
+    navigation.tools_toggle.click()
+    buttons = list(navigation.buttons.values())
+    qtbot.waitUntil(
+        lambda: all(
+            left.geometry().bottom() < right.geometry().top()
+            for left, right in zip(buttons, buttons[1:], strict=False)
+        )
+    )
+    for button in buttons:
+        navigation.scroll_area.ensureWidgetVisible(button)
+        qtbot.waitUntil(
+            lambda button=button: (
+                navigation.scroll_area.viewport()
+                .rect()
+                .contains(button.mapTo(navigation.scroll_area.viewport(), button.rect().center()))
+            )
+        )
+        assert button.height() >= 40
+    assert window.size().width() <= size[0]
+    assert window.size().height() <= size[1]

@@ -4,7 +4,8 @@ STYLESHEET = """
 QWidget { background: #19191d; color: #dedee3; font-family: "Segoe UI", "Inter", sans-serif;
           font-size: 14px; }
 QMainWindow, QWidget#root, QWidget#workspace { background: #19191d; }
-QWidget#sidebar { background: #141417; border-right: 1px solid #28282d; }
+QWidget#sidebar, QWidget#sidebarContent { background: #141417; }
+QWidget#sidebar { border-right: 1px solid #28282d; }
 QLabel { background: transparent; border: none; }
 QLabel#brand { color: #ececf0; font-size: 14px; font-weight: 650; letter-spacing: 2px; }
 QLabel#sidebarCaption { color: #777780; font-size: 11px; }

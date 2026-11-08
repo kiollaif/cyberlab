@@ -6,12 +6,13 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QLibraryInfo, QLocale, QStandardPaths, QTranslator
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication
 
 from cyberlab.desktop import application_icon, integrate_appimage
 from cyberlab.session import LabSession
 from cyberlab.storage import HistoryRepository
 from cyberlab.ui import MainWindow
+from cyberlab.ui_helpers import show_error
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,9 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     except (sqlite3.Error, ValueError, OSError, KeyError, TypeError) as error:
         if repository is not None:
             repository.close()
-        QMessageBox.critical(
-            None, "CYBERLAB: ошибка запуска", f"Не удалось открыть историю.\n{error}"
-        )
+        show_error(None, "CYBERLAB: не удалось открыть историю", error)
         return 1
     app.aboutToQuit.connect(repository.close)
     window.show()

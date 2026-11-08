@@ -182,8 +182,6 @@ def test_glossary_is_offline_and_does_not_change_the_simulation(cyberlab2, monke
 def test_cancel_and_failed_pdf_export_keep_history_and_existing_file(
     cyberlab2, tmp_path, monkeypatch
 ):
-    from PySide6.QtWidgets import QMessageBox
-
     window = cyberlab2
     window.start_button.click()
     window.training_start_button.click()
@@ -191,12 +189,31 @@ def test_cancel_and_failed_pdf_export_keep_history_and_existing_file(
     before = window.lab.entries
     old_file = tmp_path / "existing.pdf"
     old_file.write_bytes(b"Existing report")
+    window.results.export_status.setText("Отчёт сохранён.")
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     window.results.pdf_button.click()
+    assert not window.results.export_status.text()
     assert old_file.read_bytes() == b"Existing report" and window.lab.entries == before
     errors = []
-    monkeypatch.setattr(QMessageBox, "critical", lambda *a: errors.append(a))
+    monkeypatch.setattr("cyberlab.ui.show_error", lambda *a: errors.append(a))
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path), ""))
     window.results.pdf_button.click()
     assert errors and not window.results.export_status.text()
     assert window.lab.entries == before and old_file.read_bytes() == b"Existing report"
+
+
+def test_error_dialog_has_plain_explanation_and_optional_technical_details(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from cyberlab.ui_helpers import show_error
+
+    observed = []
+    monkeypatch.setattr(
+        QMessageBox,
+        "exec",
+        lambda dialog: observed.append((dialog.text(), dialog.detailedText())),
+    )
+    show_error(None, "Не удалось сохранить отчёт", OSError("test disk write failed"))
+    assert "Проверьте доступ к папке" in observed[0][0]
+    assert "test disk write failed" not in observed[0][0]
+    assert observed[0][1] == "test disk write failed"

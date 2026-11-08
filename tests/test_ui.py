@@ -4,7 +4,7 @@ import sys
 
 import pytest
 from PySide6.QtCore import QPoint, QSettings, QSize, Qt
-from PySide6.QtWidgets import QLabel, QMessageBox, QPushButton
+from PySide6.QtWidgets import QLabel, QPushButton
 
 from cyberlab.session import LabSession
 from cyberlab.storage import HistoryRepository
@@ -332,7 +332,7 @@ def test_failed_save_keeps_situation_and_does_not_show_fake_consequence(qtbot, w
     start(qtbot, window)
     before = window.lab.active
     errors = []
-    monkeypatch.setattr(QMessageBox, "critical", lambda *args: errors.append(args[-1]))
+    monkeypatch.setattr("cyberlab.ui.show_error", lambda *args: errors.append(str(args[-1])))
     window.lab.repository.connection.execute("""
         CREATE TRIGGER reject_save BEFORE UPDATE OF active_entry_id ON sessions
         BEGIN

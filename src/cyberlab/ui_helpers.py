@@ -5,12 +5,31 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
+
+
+def show_error(parent: QWidget | None, title: str, error: Exception) -> None:
+    """Сначала понятное действие; исходная ошибка доступна через «Подробнее»."""
+    dialog = QMessageBox(parent)
+    dialog.setIcon(QMessageBox.Icon.Critical)
+    dialog.setWindowTitle(title)
+    dialog.setTextFormat(Qt.TextFormat.PlainText)
+    dialog.setText(
+        "Операция не завершена. Проверьте доступ к папке и свободное место, "
+        "затем попробуйте ещё раз."
+        if not isinstance(error, ValueError)
+        else "Не удалось прочитать учебные данные. Попробуйте открыть другую тренировку "
+        "или проверьте версию приложения."
+    )
+    dialog.setInformativeText("Техническое описание можно раскрыть кнопкой «Подробнее».")
+    dialog.setDetailedText(str(error))
+    dialog.exec()
 
 
 def create_label(text: str = "", name: str = "", *, wrap: bool = True) -> QLabel:

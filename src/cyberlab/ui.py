@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QMainWindow,
-    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -28,7 +27,7 @@ from cyberlab.statistics import load_results
 from cyberlab.storage import Session
 from cyberlab.styles import STYLESHEET
 from cyberlab.tutorial import TutorialPage
-from cyberlab.ui_helpers import create_label, link_button, make_scrollable
+from cyberlab.ui_helpers import create_label, link_button, make_scrollable, show_error
 from cyberlab.virtual_computer import VirtualComputer
 from cyberlab.welcome_pages import HomePage, TrainingPage
 
@@ -331,6 +330,7 @@ class MainWindow(QMainWindow):
         self._sync_scenario_selector()
 
     def _export_report(self, *, pdf: bool = False) -> None:
+        self.results.export_status.clear()
         extension = "pdf" if pdf else "txt"
         filename, _ = QFileDialog.getSaveFileName(
             self,
@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
         try:
             action()
         except (sqlite3.Error, ValueError, OSError) as error:
-            QMessageBox.critical(self, error_title, str(error))
+            show_error(self, error_title, error)
 
     def _replay_tutorial(self) -> None:
         self._tutorial_returns_to_training = False

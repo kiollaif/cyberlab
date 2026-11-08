@@ -7,11 +7,6 @@
 
 Локальный бинарный файл на Debian проверен без Python/uv в PATH. Сборки для
 распространения создаются отдельно на Windows runner и Ubuntu 22.04.
-Ниже сохранена инструкция установки; ссылки на прогон 40917682019 относятся
-к **предыдущей версии 0.1**, а не к 2.0. Готовые файлы 2.0 следует брать
-из успешного запуска ветки `build/cyberlab-2`.
-
-# Настольные сборки CYBERLAB
 
 Исходники и история SQLite остаются общими для Windows и Linux. PyInstaller
 добавляет интерпретатор Python, PySide6, плагины Qt, русский перевод и ресурсы.
@@ -31,14 +26,20 @@
 | `CyberLab-ALT-p11-unverified-candidate` | RPM-кандидат и результаты проверки ALT Container p11; это не проверка Альт Образование |
 | `CyberLab-desktop-kde-reports`, `CyberLab-desktop-gnome-reports` | Результат запуска с настоящим оконным менеджером, его имя и журнал |
 
-Готовые файлы [успешного прогона 40917682019](https://github.com/kiollaif/cyberlab/actions/runs/40917682019)
-на коммите `bf2d88f`:
+Готовые файлы **2.0.0b1** из [успешного прогона 42506205331](https://github.com/kiollaif/cyberlab/actions/runs/42506205331)
+на коммите `3b3af9b`:
 
 | Содержимое ZIP | Ссылка |
 | --- | --- |
-| `CyberLab-Setup.exe`, `CyberLab.exe` | [Скачать Windows](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12916063179) |
-| `CyberLab-x86_64.AppImage` | [Скачать AppImage](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12916657842) |
-| `CyberLab-alt-p11-unverified.rpm` | [Скачать RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/40917682019/artifacts/12917062201) |
+| `CyberLab-Setup.exe`, `CyberLab.exe` | [Скачать Windows](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627642548) |
+| `CyberLab-x86_64.AppImage` | [Скачать AppImage](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627293614) |
+| `CyberLab-alt-p11-unverified.rpm` | [Скачать RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13628060299) |
+
+Checks для того же кода [завершился успешно на Windows и Ubuntu](https://github.com/kiollaif/cyberlab/actions/runs/42506205335).
+В Desktop builds выполнены тесты, сборка и запуск EXE, установка и удаление с
+проверкой ярлыков и сохранности данных; AppImage через FUSE и без сети в контейнере;
+KWin/GNOME Shell на X11; установка и запуск RPM в ALT p11. Это автоматические
+испытания, они не заменяют ручную проверку Windows 10/11 и Альт Образование.
 
 **Windows:** распакуйте ZIP артефакта, дважды нажмите `CyberLab-Setup.exe` и
 завершите установку. Программа устанавливается для текущего пользователя,
@@ -150,8 +151,8 @@ Linux: собирать на Ubuntu 22.04 x86_64 с зависимостями Q
 ## Что считается проверкой
 
 Windows и Linux проходят исходные тесты, затем проверяется именно собранный
-файл: окно, иконка, русский Qt, четыре сценария, опасная ветка, возврат, безопасная ветка,
-сравнение, локальный наставник, неизменность состояния и повторное открытие
+файл: окно, иконка, русский Qt, шесть сценариев, опасная ветка, возврат, безопасная ветка,
+сравнение, локальный наставник, TXT/PDF, статистика, неизменность состояния и повторное открытие
 SQLite. Python audit hook запрещает сеть в этом тесте; он не является
 сетевой изоляцией нативного Qt на уровне ОС. Проверка запуска AppImage в CI
 в режиме extract-and-run не подменяет проверку монтирования через FUSE.
@@ -166,7 +167,7 @@ SQLite. Python audit hook запрещает сеть в этом тесте; о
 Ниже указаны фактически выполненные проверки. Наличие конфигурации само по себе
 не означает успешную сборку.
 
-### Результаты этой доработки — 29 октября 2026
+### Исторические результаты версии 0.1 — 29 октября 2026
 
 - Перед текущим расширением: 93 теста. Старые проверки сохранены.
 - Linux: 147 тестов прошли, включая новые сценарии, экспорт и настройки API.

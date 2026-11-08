@@ -19,6 +19,15 @@ CyberLab — настольный тренажёр кибербезопасно�
 Выберите успешную сборку ветки `build/cyberlab-2`. Внизу страницы, в разделе
 **Artifacts**, находятся архивы. Для скачивания нужен вход в GitHub.
 
+Проверенная версия **2.0.0b1**, код `3b3af9b`:
+
+| Система | Скачать ZIP |
+| --- | --- |
+| Windows x86_64 | [Установщик и приложение](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627642548) |
+| Linux x86_64 | [AppImage](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627293614) |
+
+Архивы хранятся 90 дней. [Результаты этой сборки](https://github.com/kiollaif/cyberlab/actions/runs/42506205331).
+
 - **Windows x86_64:** скачайте `CyberLab-Windows-x86_64`, распакуйте ZIP
   и откройте `CyberLab-Setup.exe`. После установки запускайте программу ярлыком
   на рабочем столе или в «Пуск». Отдельный `CyberLab.exe` работает без установки.

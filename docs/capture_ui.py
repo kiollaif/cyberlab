@@ -79,7 +79,22 @@ def main() -> None:
             capture("history")
             window._open_ai()
             capture("helper")
-            print("Captured eight screens, a branched history and a PDF in", args.output)
+            for scenario_index, name in ((1, "attachment"), (5, "download")):
+                window.show_menu()
+                click(window.start_button)
+                selector = window.scenario_selector
+                selector.setFocus()
+                while selector.currentIndex() != scenario_index:
+                    key = (
+                        Qt.Key.Key_Down
+                        if selector.currentIndex() < scenario_index
+                        else Qt.Key.Key_Up
+                    )
+                    QTest.keyClick(selector, key)
+                    QTest.qWait(20)
+                click(window.training_start_button)
+                capture(name)
+            print("Captured ten screens, a branched history and a PDF in", args.output)
         finally:
             window.close()
             app.processEvents()

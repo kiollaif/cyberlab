@@ -165,6 +165,10 @@
 
 ![Помощник](v2/helper.png)
 
+![Источник вложения](v2/attachment.png)
+
+![Загрузка программы](v2/download.png)
+
 ## Результаты проверки
 
 Проверено в облачной Debian 13 x86_64: Python 3.12.14, PySide6/Qt 6.12.0.
@@ -173,8 +177,8 @@
 | --- | --- |
 | До изменения модели | 156 passed |
 | После сценариев и общего расчёта оценки | 183 passed |
-| Полный pytest с Qt offscreen | 192 passed |
-| Полный pytest с Qt xcb/Xvfb | 192 passed |
+| Полный pytest с Qt offscreen | 194 passed |
+| Полный pytest с Qt xcb/Xvfb | 194 passed |
 | Ruff check и format --check | Успешно |
 | Сборка sdist и wheel 2.0.0b1 | Успешно |
 | Установка wheel в отдельное окружение без сети | Успешно, запуск вне исходников |
@@ -199,13 +203,41 @@ uv run --locked python scripts/verify_desktop.py dist/frozen/CyberLab/CyberLab -
 Снимки воспроизводятся `uv run --locked python docs/capture_ui.py` в графической
 сессии. Для Linux без дисплея можно использовать `QT_QPA_PLATFORM=offscreen`.
 Скрипт проходит вводный урок, опасный путь, возврат, безопасный вариант и историю
-реальными событиями Qt, сохраняя восемь снимков и [пример PDF](v2/example-report.pdf).
+реальными событиями Qt, сохраняя десять снимков и [пример PDF](v2/example-report.pdf).
 
 Первый удалённый [Checks 42502492881](https://github.com/kiollaif/cyberlab/actions/runs/42502492881)
 на `57409e3` выявил выход ширины экрана ситуации при 640×420 на Windows.
 Linux-тесты и офлайн-пакет прошли. Тест сохранён, добавлены диагностические размеры;
-длинные подписи вспомогательных действий сокращены. Повторная Windows-проверка
-учитывается отдельно после её фактического завершения.
+длинные подписи вспомогательных действий сокращены. Повторные Checks на `7588b55` прошли на Windows и Ubuntu. Дополнительно найден
+и исправлен возврат из завершённого урока: кнопка «Назад» больше не открывает
+его снова. Офлайн-ответ помощника не выдаётся за ошибку отсутствующего ключа.
+Для вложения и USB источник показывает вымышленный объект, а не общую ссылку фишинга; добавлены две проверки.
+
+### Завершённые GitHub Actions для окончательного кода
+
+Оба workflow проверены по страницам запуска и результатам шагов. Код приложения —
+**`3b3af9b`**; последующие изменения этого отчёта и снимков не меняют приложение.
+
+| Запуск | Фактический результат |
+| --- | --- |
+| [Checks 42506205335](https://github.com/kiollaif/cyberlab/actions/runs/42506205335) | Успешно: Qt, тесты, Ruff, wheel/sdist и офлайн-установка на Windows и Ubuntu |
+| [Desktop builds 42506205331](https://github.com/kiollaif/cyberlab/actions/runs/42506205331) | Все пять заданий успешно завершены |
+| Windows x86_64 | EXE без консоли и русский установщик собраны; установка, оба ярлыка, запуск без Python/uv в PATH, удаление и сохранность данных проверены |
+| Ubuntu 22.04 x86_64 | AppImage собран; запуск с X11, FUSE и в контейнере без сети, Python и исходников прошёл |
+| KWin и GNOME Shell | Настоящие оконные менеджеры запущены на Xvfb/X11, AppImage проверен в обоих |
+| ALT p11 | RPM собран, установлен, запущен и удалён в официальном контейнере; это не подтверждение Альт Образование |
+
+Файлы этого запуска (ZIP; для скачивания требуется вход в GitHub):
+
+| Файлы | Ссылка |
+| --- | --- |
+| `CyberLab-Setup.exe`, `CyberLab.exe` | [Windows](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627642548) |
+| `CyberLab-x86_64.AppImage` | [Linux](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13627293614) |
+| `CyberLab-alt-p11-unverified.rpm` | [Только RPM-кандидат](https://github.com/kiollaif/cyberlab/actions/runs/42506205331/artifacts/13628060299) |
+
+Архивы Windows/AppImage хранятся 90 дней, RPM — 30. Сборки пока не подписаны.
+Windows runner не заменяет ручную проверку физических Windows 10/11,
+а Xvfb/X11 — пользовательскую сессию Wayland и запуск через файловый менеджер.
 
 ## Оставшиеся ограничения
 
@@ -219,3 +251,18 @@ Linux-тесты и офлайн-пакет прошли. Тест сохран�
   вредоносного ПО или проверку безопасности настоящего устройства.
 - Поддержка конкретной системы ALT Education требует отдельного испытания;
   сборка в контейнере ALT p11 этого не подтверждает.
+
+
+## Публикация и Pull Request
+
+Код и документация опубликованы в `build/cyberlab-2`.
+Выполнена команда `gh pr create --repo kiollaif/cyberlab --base main --head build/cyberlab-2`
+с подготовленным описанием. GitHub API вернул:
+
+```text
+Post "https://api.github.com/graphql": Forbidden
+```
+
+PR этой командой не создан. В среде нет доступного браузерного инструмента
+для авторизованного действия через сайт. [Открыть создание PR с заполненным заголовком и описанием](https://github.com/kiollaif/cyberlab/compare/main...build/cyberlab-2?expand=1&title=CYBERLAB+2.0%3A+%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B5%2C+%D1%81%D1%86%D0%B5%D0%BD%D0%B0%D1%80%D0%B8%D0%B8%2C+%D0%BE%D1%86%D0%B5%D0%BD%D0%BA%D0%B0+%D1%80%D0%B5%D1%88%D0%B5%D0%BD%D0%B8%D0%B9+%D0%B8+PDF&body=%D0%A3%D1%87%D0%B5%D0%B1%D0%BD%D1%8B%D0%B9+%D1%86%D0%B8%D0%BA%D0%BB+CyberLab+2.0%3A+%D1%88%D0%B5%D1%81%D1%82%D1%8C+%D1%82%D0%B5%D0%BC+%D0%B8+47+%D0%BC%D0%B0%D1%80%D1%88%D1%80%D1%83%D1%82%D0%BE%D0%B2%2C+%D0%B2%D0%BE%D0%B7%D0%B2%D1%80%D0%B0%D1%82+%D0%B8+%D1%81%D1%80%D0%B0%D0%B2%D0%BD%D0%B5%D0%BD%D0%B8%D0%B5%2C+%D0%BF%D0%BE%D0%BC%D0%BE%D1%89%D0%BD%D0%B8%D0%BA+%D0%BD%D0%B0+%D0%BF%D1%80%D0%B0%D0%B2%D0%B8%D0%BB%D0%B0%D1%85%2C+%D0%B3%D1%80%D0%B0%D1%84%D0%B8%D0%BA%D0%B8+%D0%B8+PDF.+%D0%9B%D0%BE%D0%BA%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE+%D0%BF%D1%80%D0%BE%D1%88%D0%BB%D0%B8+194+%D1%82%D0%B5%D1%81%D1%82%D0%B0+offscreen+%D0%B8+194+xcb%2FXvfb.%0A%0A%D0%9E%D0%BF%D0%B8%D1%81%D0%B0%D0%BD%D0%B8%D0%B5%2C+%D0%BF%D1%80%D0%BE%D0%B2%D0%B5%D1%80%D0%BA%D0%B8+%D0%B8+%D0%BE%D0%B3%D1%80%D0%B0%D0%BD%D0%B8%D1%87%D0%B5%D0%BD%D0%B8%D1%8F%3A+https%3A%2F%2Fgithub.com%2Fkiollaif%2Fcyberlab%2Fblob%2Fbuild%2Fcyberlab-2%2Fdocs%2Fcyberlab2.md).
+Полный текст для ревью — [pull_request_2.md](pull_request_2.md).

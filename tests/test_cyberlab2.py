@@ -54,6 +54,10 @@ def test_catalog_metadata_and_optional_lesson_preserve_selected_topic(cyberlab2)
     assert window.current_page is window.training
     assert window.lab.scenario == DOWNLOAD and window.lab.entries == original
     assert not window.training.lesson_offer.isVisible()
+    window.back_button.click()
+    assert window.current_page is window.menu
+    window.start_button.click()
+    assert window.current_page is window.training
     window.training_start_button.click()
     assert window.current_page is window.situation
     assert "отключите" in window.situation.source_body.text()

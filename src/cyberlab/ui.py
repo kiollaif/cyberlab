@@ -388,7 +388,13 @@ class MainWindow(QMainWindow):
         self.settings.setValue("tutorial_completed", True)
         self.settings.sync()
         if self._tutorial_returns_to_training:
-            self._open_training()
+            # Завершённый урок не должен снова открываться кнопкой «Назад».
+            # Убираем также повторные посещения каталога, сохраняя предыдущий раздел.
+            self.back_stack = [
+                page for page in self.back_stack if page not in (self.tutorial, self.training)
+            ]
+            self._sync_scenario_selector()
+            self._show(self.training)
         else:
             self.show_menu()
 

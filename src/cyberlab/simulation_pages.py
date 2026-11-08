@@ -144,10 +144,19 @@ class SituationPage(QWidget):
         self.title.setText(node.title)
         self.description.setText(node.description)
         self.source.setVisible(active.parent_id is None)
-        self.source_meta.setText(
-            f"Источник: {scenario.sender_address or 'Учебный поиск'}\n"
-            f"Тема: {scenario.mail_subject} · Адрес: {scenario.site_address}"
-        )
+        if scenario.kind == "usb":
+            metadata = f"Источник: найденное устройство\nОбъект: {scenario.artifact}"
+        else:
+            detail = (
+                f"Вложение: {scenario.artifact}"
+                if scenario.kind == "attachment"
+                else f"Адрес: {scenario.site_address}"
+            )
+            metadata = (
+                f"Источник: {scenario.sender_address or 'Учебный поиск'}\n"
+                f"Тема: {scenario.mail_subject} · {detail}"
+            )
+        self.source_meta.setText(metadata)
         self.source_body.setText(scenario.mail_body)
         clear_layout(self.actions)
         for number, choice in enumerate(node.choices, 1):

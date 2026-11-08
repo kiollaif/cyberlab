@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QFileDialog, QPushButton
 
 from cyberlab.glossary import TERMS
 from cyberlab.pdf_report import build_pdf_report
-from cyberlab.scenarios import DOWNLOAD, MESSAGE, SCENARIOS
+from cyberlab.scenarios import ATTACHMENT, DOWNLOAD, MESSAGE, PHISHING, SCENARIOS, USB
 from cyberlab.session import LabSession
 from cyberlab.storage import HistoryRepository
 from cyberlab.ui import MainWindow
@@ -61,6 +61,19 @@ def test_catalog_metadata_and_optional_lesson_preserve_selected_topic(cyberlab2)
     window.training_start_button.click()
     assert window.current_page is window.situation
     assert "отключите" in window.situation.source_body.text()
+
+
+@pytest.mark.parametrize("scenario", [ATTACHMENT, USB])
+def test_non_web_source_shows_the_actual_object_instead_of_a_phishing_url(cyberlab2, scenario):
+    window = cyberlab2
+    window.start_button.click()
+    window.scenario_selector.setCurrentIndex(window.scenario_selector.findData(scenario.id))
+    window.training_start_button.click()
+    metadata = window.situation.source_meta.text()
+    assert scenario.artifact in metadata
+    assert PHISHING.site_address not in metadata
+    if scenario == USB:
+        assert "поиск" not in metadata.lower()
 
 
 @pytest.mark.parametrize(

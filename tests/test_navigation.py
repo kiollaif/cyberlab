@@ -69,7 +69,7 @@ def test_home_has_three_main_actions_and_optional_help(workspace):
         window.sessions_button,
         window.help_button,
     ]
-    assert window.resume_button.isVisible() and not window.resume_button.isEnabled()
+    assert not window.resume_button.isVisible() and not window.resume_button.isEnabled()
     assert window.start_button.isVisible()
     assert not window.navigation.isVisible() and not window.topbar.isVisible()
     assert window.start_button.width() < window.pages[window.menu].viewport().width() / 2

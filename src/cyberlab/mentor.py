@@ -4,29 +4,19 @@
 """
 
 from cyberlab.domain import ComputerState, Scenario, compare_states
+from cyberlab.glossary import explain_term
 
 
 def answer_local_question(question: str, current_explanation: str) -> str:
     """Небольшой открытый словарь правил, а не имитация генеративного ИИ."""
-    rules = {
-        "макрос": "Макросы выполняют команды. "
-        "Не разрешайте их неожиданному документу без проверки.",
-        "usb": "Чужой USB передайте специалисту. "
-        "Отключение USB не останавливает уже запущенную программу.",
-        "накопител": "Не подключайте неизвестное устройство к рабочему ПК "
-        "для проверки его содержимого.",
-        "https": "HTTPS шифрует соединение, "
-        "но не доказывает, что сайт принадлежит школе или банку.",
-        "парол": "Не вводите настоящий пароль в симуляцию. После утечки используют "
-        "доверенный канал для смены пароля и отзыва сеансов.",
-        "фишинг": "Фишинг убеждает довериться чужому источнику. "
-        "Проверяйте домен и обращайтесь через известный контакт.",
-        "риск": "Риск 0–100 — учебная оценка автора сценария, а не вероятность реальной атаки.",
-    }
-    for keyword, explanation in rules.items():
-        if keyword in question.lower():
-            return explanation + "\n\nТекущая симуляция\n" + current_explanation
-    return current_explanation
+    explanation = explain_term(question)
+    if explanation is not None:
+        return explanation + "\n\nТекущая симуляция\n" + current_explanation
+    return (
+        "В локальной справке нет точного ответа на этот вопрос. "
+        "Я могу объяснить фишинг, домены, HTTPS, макросы, USB, пароли и учебный риск."
+        "\n\nПо текущим данным симуляции\n" + current_explanation
+    )
 
 
 def explain_state(state: ComputerState, scenario: Scenario | None = None) -> str:
@@ -57,6 +47,11 @@ def explain_state(state: ComputerState, scenario: Scenario | None = None) -> str
         elif scenario.kind == "attachment":
             paragraphs.append(
                 "Не разрешайте макросы неожиданному документу без проверки источника."
+            )
+        elif scenario.kind == "download":
+            paragraphs.append(
+                "Не отключайте защиту ради неизвестного установщика. "
+                "Загрузка и выполнение программы — разные действия."
             )
         else:
             paragraphs.append(

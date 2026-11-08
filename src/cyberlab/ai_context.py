@@ -46,6 +46,7 @@ def computer_data(state: ComputerState) -> dict:
         "malware_active": state.malware_active,
         "source_checked": state.source_checked,
         "threat_blocked": state.threat_blocked,
+        "program_downloaded": state.program_downloaded,
     }
 
 

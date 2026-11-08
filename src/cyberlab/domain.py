@@ -33,6 +33,7 @@ class ComputerState:
     malware_active: bool = False
     source_checked: bool = False
     threat_blocked: bool = False
+    program_downloaded: bool = False
 
     def __post_init__(self) -> None:
         if not 0 <= self.risk <= 100:
@@ -56,6 +57,7 @@ class StateChange:
     malware_active: bool | None = None
     source_checked: bool | None = None
     threat_blocked: bool | None = None
+    program_downloaded: bool | None = None
 
     def apply(self, state: ComputerState, event: str) -> ComputerState:
         """Создать новый снимок с изменениями и дополнительной записью журнала."""

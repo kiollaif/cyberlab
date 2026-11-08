@@ -1,10 +1,18 @@
 """Панель ИИ-наставника. Поток получает копию контекста, а не доступ к LabSession."""
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtWidgets import QHBoxLayout, QPlainTextEdit, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QPlainTextEdit,
+    QProgressBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from cyberlab.ai_client import MAX_QUESTION_CHARS, DeepSeekClient, MentorReply
 from cyberlab.ai_context import MentorContext
+from cyberlab.glossary import TERMS
 from cyberlab.ui_helpers import action_button, create_label, link_button
 
 
@@ -41,18 +49,25 @@ class AiMentorPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(14)
         heading = QHBoxLayout()
-        heading.addWidget(create_label("Наставник", "storyTitle"), 1)
+        heading.addWidget(create_label("Помощник CyberLab", "storyTitle"), 1)
         self.mode = create_label("Локальный наставник — офлайн", "muted")
         self.mode.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         heading.addWidget(self.mode, 1)
         layout.addLayout(heading)
         layout.addWidget(
             create_label(
-                "Онлайн-наставник отправляет вопрос и учебную ситуацию своему сервису. "
-                "Не вводите реальные пароли и личные данные. ИИ может ошибаться.",
+                "Локальный помощник — система на правилах и проверенная справка, не нейросеть. "
+                "Работает без интернета и оплаты. Онлайн-ответы доступны только при "
+                "подключённом сервисе.",
                 "muted",
             )
         )
+        self.term_selector = QComboBox()
+        self.term_selector.setAccessibleName("Объяснить термин без интернета")
+        self.term_selector.addItem("Объяснить термин без интернета…")
+        self.term_selector.addItems(list(TERMS))
+        self.term_selector.activated.connect(self._explain_term)
+        layout.addWidget(self.term_selector)
         self.answer = QPlainTextEdit()
         self.answer.setProperty("role", "answer")
         self.answer.setReadOnly(True)
@@ -69,7 +84,9 @@ class AiMentorPanel(QWidget):
         tools.addStretch()
         layout.addLayout(tools)
         self.question = QPlainTextEdit()
-        self.question.setPlaceholderText("Спросите о текущей ситуации…")
+        self.question.setPlaceholderText(
+            "Вопрос по учебной ситуации. Не вводите настоящие пароли и личные данные."
+        )
         self.question.setAcceptDrops(False)
         self.question.setFixedHeight(76)
         self.question.textChanged.connect(self._limit_question)
@@ -115,6 +132,13 @@ class AiMentorPanel(QWidget):
     def busy(self) -> bool:
         return self.worker is not None
 
+    def _explain_term(self, index: int) -> None:
+        if index > 0 and not self.busy:
+            self.answer.setPlainText(TERMS[self.term_selector.itemText(index)])
+            self.mode.setText("Локальный наставник — офлайн")
+            self.status.setText("Объяснение из локальной справки. Сеть не использовалась.")
+            self.status.show()
+
     def set_context(self, context: MentorContext) -> None:
         changed = self.context is None or self.context.key != context.key
         self.context = context
@@ -136,6 +160,7 @@ class AiMentorPanel(QWidget):
     def _enable_buttons(self) -> None:
         enabled = self.context is not None and not self.busy
         self.question.setEnabled(not self.busy)
+        self.term_selector.setEnabled(not self.busy)
         for button in self.buttons:
             button.setEnabled(enabled)
         self.compare_button.setEnabled(enabled and bool(self.context.local_comparison))

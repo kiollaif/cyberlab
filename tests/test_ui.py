@@ -73,7 +73,7 @@ def open_decisions(qtbot, window):
 def test_first_menu_tutorial_skip_and_replay_do_not_write_decisions(qtbot, window):
     window.settings.setValue("tutorial_completed", False)
     assert window.current_page is window.menu
-    assert window.resume_button.isVisible() and not window.resume_button.isEnabled()
+    assert not window.resume_button.isVisible() and not window.resume_button.isEnabled()
     original = window.lab.entries
     click(qtbot, window, window.sessions_button)
     assert window.empty_history.isVisible()

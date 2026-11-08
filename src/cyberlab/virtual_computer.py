@@ -3,7 +3,7 @@
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QListWidget, QTabWidget, QTextEdit, QVBoxLayout, QWidget
 
-from cyberlab.domain import VIRTUAL_FILES, ComputerState
+from cyberlab.domain import VIRTUAL_FILES, ComputerState, VirtualFile
 from cyberlab.mentor import explain_comparison, explain_state
 from cyberlab.scenarios import PHISHING
 from cyberlab.ui_helpers import create_label, make_scrollable
@@ -16,6 +16,7 @@ class VirtualComputer(QWidget):
         super().__init__()
         self.state = ComputerState()
         self.scenario = PHISHING
+        self.visible_files = VIRTUAL_FILES
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(16)
@@ -89,13 +90,10 @@ class VirtualComputer(QWidget):
         page_layout = QVBoxLayout(self.browser_page)
         self.browser_address = create_label("", "badge")
         page_layout.addWidget(self.browser_address)
-        page_layout.addWidget(create_label("Подтвердите учётную запись", "heading"))
-        page_layout.addWidget(
-            create_label(
-                "Это макет поддельной страницы. Настоящая сеть не используется. "
-                "Отправка вымышленного пароля моделируется выбором решения на экране ситуации."
-            )
-        )
+        self.browser_heading = create_label("", "heading")
+        self.browser_description = create_label()
+        page_layout.addWidget(self.browser_heading)
+        page_layout.addWidget(self.browser_description)
         browser_layout.addWidget(self.browser_page)
         browser_layout.addStretch()
         self.tabs.addTab(make_scrollable(browser), "Браузер")
@@ -130,10 +128,39 @@ class VirtualComputer(QWidget):
         self.source_body.setText(scenario.mail_body)
         self.source_link.setVisible(scenario.kind == "phishing")
         self.browser_address.setText(scenario.site_address)
+        self.browser_heading.setText(
+            "Учебная загрузка программы"
+            if scenario.kind == "download"
+            else "Подтвердите учётную запись"
+        )
+        self.browser_description.setText(
+            "Макет страницы загрузки. Файл не скачивается в настоящую систему. "
+            "Разрешение запуска моделируется выбором действия в симуляции."
+            if scenario.kind == "download"
+            else "Макет страницы без настоящей сети. Передача вымышленного пароля "
+            "моделируется выбором решения на экране ситуации."
+        )
 
     def render(self, state: ComputerState) -> None:
         previous_state = self.state
         self.state = state
+        files = VIRTUAL_FILES
+        if state.program_downloaded:
+            files += (
+                VirtualFile(
+                    self.scenario.artifact,
+                    "Учебный установщик. Это описание внутри модели, не исполняемый файл. "
+                    "Настоящие загрузка и запуск не выполнялись.",
+                ),
+            )
+        if files != self.visible_files:
+            row = max(0, self.file_list.currentRow())
+            self.visible_files = files
+            self.file_list.blockSignals(True)
+            self.file_list.clear()
+            self.file_list.addItems([file.name for file in files])
+            self.file_list.setCurrentRow(min(row, len(files) - 1))
+            self.file_list.blockSignals(False)
         if state != previous_state:
             self._highlight_changes(previous_state, state)
             self.mentor_comparison.setText(
@@ -153,6 +180,8 @@ class VirtualComputer(QWidget):
         if self.scenario.kind != "phishing":
             mail_kind = self.scenario.kind == "attachment"
             self.tabs.setTabText(0, "Почта" if mail_kind else "Источник")
+            if self.scenario.kind == "message":
+                self.tabs.setTabText(0, "Чат")
             self.mail_status.setText("УЧЕБНЫЙ ОБЪЕКТ · " + self.scenario.artifact)
             self.mail_details.setText(
                 self.scenario.sender_address
@@ -169,6 +198,12 @@ class VirtualComputer(QWidget):
                 if self.scenario.kind == "usb"
                 else "Все страницы — макеты без настоящей сети."
             )
+            if self.scenario.kind == "download":
+                self.artifact_state.setText(
+                    "Учебный установщик загружен в модель."
+                    if state.program_downloaded
+                    else "Установщик ещё не загружен."
+                )
             self.artifact_state.show()
         else:
             self.artifact_state.hide()
@@ -218,12 +253,12 @@ class VirtualComputer(QWidget):
             changed = index in changed_tabs
             self.tabs.setTabText(index, title + (" •" if changed else ""))
             self.tabs.setTabToolTip(index, "Изменилось в текущем снимке" if changed else title)
-            self.tabs.tabBar().setTabTextColor(index, QColor("#cecbf1" if changed else "#92929d"))
+            self.tabs.tabBar().setTabTextColor(index, QColor("#86d7ef" if changed else "#92929d"))
 
     def _show_file(self, row: int) -> None:
-        if row < 0:
+        if not 0 <= row < len(self.visible_files):
             return
-        file = VIRTUAL_FILES[row]
+        file = self.visible_files[row]
         self.file_content.setPlainText(
             f"{file.name}\n\n[Содержимое недоступно]\n"
             "Файл зашифрован в учебной модели. Вернитесь к предыдущему решению, "

@@ -79,9 +79,9 @@ class WorkspaceNavigation(QWidget):
         self.buttons = {}
         self.titles = {
             "home": "Главная",
-            "simulation": "Обучение",
-            "sessions": "Мои результаты",
-            "mentor": "Наставник",
+            "simulation": "Симуляция",
+            "sessions": "Результаты",
+            "mentor": "Помощник",
             "decisions": "Ваши решения",
             "comparison": "Сравнение",
             "computer": "Компьютер",
@@ -129,7 +129,7 @@ class WorkspaceNavigation(QWidget):
             self.tools_toggle.setChecked(True)
         for name, button in self.buttons.items():
             button.setChecked(name == selected)
-            button.setIcon(navigation_icon(name, "#cecbf1" if name == selected else "#9999a5"))
+            button.setIcon(navigation_icon(name, "#86d7ef" if name == selected else "#9999a5"))
 
     def set_compact(self, compact: bool) -> None:
         if compact == self.compact:

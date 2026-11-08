@@ -57,7 +57,7 @@ DOWNLOAD = Scenario(
                     hint="Поместить вымышленный файл в модель компьютера",
                     next_node="downloaded",
                     event="Учебный файл Diagram_Setup.exe появился в модели; он ещё не запущен.",
-                    change=StateChange(risk=25, browser_open=True),
+                    change=StateChange(risk=25, browser_open=True, program_downloaded=True),
                     explanation=(
                         "Источник не проверен, поэтому риск вырос. Загрузка и запуск — "
                         "разные действия: программа пока не выполняется."
@@ -108,7 +108,7 @@ DOWNLOAD = Scenario(
                     hint="Продолжить с неизвестным источником",
                     next_node="downloaded",
                     event="В модель добавлен вымышленный установщик с непроверенного сайта.",
-                    change=StateChange(risk=25, browser_open=True),
+                    change=StateChange(risk=25, browser_open=True, program_downloaded=True),
                     explanation=(
                         "Вы заметили признаки риска, но продолжили загрузку. Код ещё не "
                         "запущен, однако источник остаётся неподтверждённым."
@@ -131,7 +131,7 @@ DOWNLOAD = Scenario(
                     hint="Смоделировать согласие с просьбой установщика",
                     next_node="running",
                     event="В модели запущена подозрительная программа с разрешения пользователя.",
-                    change=StateChange(risk=80, attachment_opened=True, malware_active=True),
+                    change=StateChange(risk=80, malware_active=True),
                     explanation=(
                         "Разрешение запуска дало неизвестной программе возможность "
                         "работать. Поэтому риск резко вырос; настоящее устройство не "

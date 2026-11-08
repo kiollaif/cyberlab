@@ -3,6 +3,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QProgressBar, QVBoxLayout, QWidget
 
+from cyberlab.assessment import assess_path
 from cyberlab.domain import ComputerState, Scenario
 from cyberlab.learning import (
     decision_rating,
@@ -21,6 +22,7 @@ from cyberlab.ui_helpers import (
     create_panel,
     link_button,
 )
+from cyberlab.visuals import ConsequenceMap, LineChart
 
 
 class StateOverview(QWidget):
@@ -37,6 +39,7 @@ class StateOverview(QWidget):
             "Чем выше значение, тем опаснее ситуация в сценарии."
         )
         self.meter = QProgressBar()
+        self.meter.setObjectName("riskMeter")
         self.meter.setRange(0, 100)
         self.meter.setTextVisible(False)
         self.meter.setFixedHeight(3)
@@ -50,6 +53,9 @@ class StateOverview(QWidget):
     def render(self, state: ComputerState) -> None:
         self.risk.setText(f"Риск: {state.risk} / 100 · {risk_level(state.risk)}")
         self.meter.setValue(state.risk)
+        self.meter.setProperty("critical", state.risk >= 76)
+        self.meter.style().unpolish(self.meter)
+        self.meter.style().polish(self.meter)
         password = "раскрыт" if state.credentials_exposed else "защищён"
         files = "недоступны" if state.files_encrypted else "доступны"
         network = "подключена" if state.network_connected else "отключена"
@@ -63,6 +69,8 @@ class StateOverview(QWidget):
             details.append("USB подключён")
         if state.malware_active:
             details.append("Программа активна")
+        if state.program_downloaded:
+            details.append("Учебный установщик загружен")
         if details:
             self.status.setText(self.status.text() + "\n" + " · ".join(details))
 
@@ -87,6 +95,14 @@ class SituationPage(QWidget):
         self.description = create_label()
         layout.addWidget(self.title)
         layout.addWidget(self.description)
+        self.source, source_layout = create_panel("Учебный источник")
+        source_layout.setContentsMargins(16, 10, 16, 10)
+        self.source.setObjectName("sourcePreview")
+        self.source_meta = create_label("", "caption")
+        self.source_body = create_label()
+        source_layout.addWidget(self.source_meta)
+        source_layout.addWidget(self.source_body)
+        layout.addWidget(self.source)
         layout.addSpacing(8)
         layout.addWidget(create_label("Как вы поступите?", "heading"))
         self.actions = QVBoxLayout()
@@ -95,6 +111,9 @@ class SituationPage(QWidget):
         layout.addSpacing(8)
         self.overview = StateOverview(compact=True)
         layout.addWidget(self.overview)
+        layout.addWidget(
+            create_label("Учебная шкала 0–100. Чем выше риск, тем опаснее ситуация.", "caption")
+        )
         self.mentor_toggle = link_button("Подсказка наставника")
         self.mentor_toggle.setCheckable(True)
         self.mentor = create_label("", "muted")
@@ -102,6 +121,13 @@ class SituationPage(QWidget):
         self.mentor_toggle.toggled.connect(self.mentor.setVisible)
         layout.addWidget(self.mentor_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.mentor)
+        self.signs_toggle = link_button("На какие признаки обратить внимание?")
+        self.signs_toggle.setCheckable(True)
+        self.signs = create_label("", "muted")
+        self.signs.hide()
+        self.signs_toggle.toggled.connect(self.signs.setVisible)
+        layout.addWidget(self.signs_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self.signs)
         layout.addStretch()
         # Общие кнопки компьютера и решений назначает MainWindow: они находятся в навигации.
 
@@ -109,7 +135,7 @@ class SituationPage(QWidget):
         node = scenario.node(active.node_id)
         made = len(history_path(entries, active.id)) - 1
         remaining = remaining_decisions(scenario, node.id)
-        self.progress_text.setText(f"ШАГ {made + 1} · СИТУАЦИЯ И ВЫБОР")
+        self.progress_text.setText(f"ШАГ {made + 1} · До итога не более {remaining} решений")
         self.progress_text.setToolTip(
             f"{scenario.title}. Принято решений: {made}. До итога: не более {remaining}."
         )
@@ -117,6 +143,12 @@ class SituationPage(QWidget):
         self.progress.setValue(made)
         self.title.setText(node.title)
         self.description.setText(node.description)
+        self.source.setVisible(active.parent_id is None)
+        self.source_meta.setText(
+            f"Источник: {scenario.sender_address or 'Учебный поиск'}\n"
+            f"Тема: {scenario.mail_subject} · Адрес: {scenario.site_address}"
+        )
+        self.source_body.setText(scenario.mail_body)
         clear_layout(self.actions)
         for number, choice in enumerate(node.choices, 1):
             button = choice_button(number, choice.title, choice.hint)
@@ -128,6 +160,12 @@ class SituationPage(QWidget):
         self.overview.render(active.state)
         self.mentor_toggle.setChecked(False)
         self.mentor.setText(explain_state(active.state, scenario))
+        self.signs_toggle.setChecked(False)
+        self.signs.setText(
+            "\n".join(node.signs)
+            or "Проверьте источник, точный адрес и неожиданную просьбу. "
+            "Не спешите разрешать выполнение команд или передавать данные."
+        )
 
 
 class ConsequencePage(QWidget):
@@ -144,6 +182,12 @@ class ConsequencePage(QWidget):
         self.action = create_label("", "storyTitle")
         layout.addWidget(self.action)
         self.event = create_label()
+        self.causality = ConsequenceMap()
+        self.causality.selected.connect(self.event.setText)
+        layout.addWidget(self.causality)
+        layout.addWidget(
+            create_label("Ситуация → выбор → последствие. Нажмите узел для пояснения.", "caption")
+        )
         layout.addWidget(self.event)
         self.reason = create_label("", "muted")
         layout.addWidget(self.reason)
@@ -179,6 +223,11 @@ class ConsequencePage(QWidget):
     ) -> None:
         self.action.setText(after.choice_title)
         self.event.setText(after.state.events[-1])
+        self.causality.set_facts(
+            scenario.node(before.node_id).title if scenario else "Предыдущая ситуация",
+            after.choice_title,
+            after.state.events[-1],
+        )
         self.reason.setText(
             explain_step(scenario, before, after)
             if scenario is not None
@@ -200,6 +249,7 @@ class ResultsPage(QWidget):
     menu_requested = Signal()
     details_requested = Signal()
     export_requested = Signal()
+    pdf_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -213,13 +263,9 @@ class ResultsPage(QWidget):
         layout.addWidget(self.summary)
         self.overview = StateOverview(compact=True)
         layout.addWidget(self.overview)
-        self.risk_history = create_label("", "muted")
-        layout.addWidget(self.risk_history)
-        self.export_button = link_button("Сохранить отчёт TXT")
-        self.export_button.clicked.connect(self.export_requested.emit)
-        layout.addWidget(self.export_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.export_status = create_label("", "caption")
-        layout.addWidget(self.export_status)
+        self.assessment_summary = create_label("", "heading")
+        layout.addWidget(self.assessment_summary)
+        layout.addWidget(create_label("Оценка выше — лучше. Риск ниже — безопаснее.", "caption"))
         controls = QHBoxLayout()
         controls.setSpacing(8)
         self.compare_button = action_button("Сравнить результаты")
@@ -232,6 +278,23 @@ class ResultsPage(QWidget):
         controls.addWidget(self.compare_button)
         controls.addStretch()
         layout.addLayout(controls)
+        self.risk_history = create_label("", "muted")
+        layout.addWidget(self.risk_history)
+        self.risk_chart = LineChart("Как менялся учебный риск")
+        self.risk_chart.point_selected.connect(self._show_point)
+        layout.addWidget(self.risk_chart)
+        self.point_detail = create_label("Нажмите точку графика для пояснения решения.", "muted")
+        layout.addWidget(self.point_detail)
+        self.recommendations = create_label("", "muted")
+        layout.addWidget(self.recommendations)
+        self.pdf_button = link_button("Сохранить отчёт PDF")
+        self.pdf_button.clicked.connect(self.pdf_requested.emit)
+        layout.addWidget(self.pdf_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.export_button = link_button("Сохранить отчёт TXT")
+        self.export_button.clicked.connect(self.export_requested.emit)
+        layout.addWidget(self.export_button, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.export_status = create_label("", "caption")
+        layout.addWidget(self.export_status)
         layout.addWidget(self.retry_button, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addSpacing(12)
         self.details_toggle = link_button("Разбор решений и альтернативы")
@@ -243,11 +306,15 @@ class ResultsPage(QWidget):
         self.decisions.setSpacing(0)
         layout.addWidget(self.details_body)
         self.alternatives = create_label("", "muted")
+        self.objectives = create_label("", "muted")
         self.details_toggle.toggled.connect(self.details_body.setVisible)
         self.details_toggle.toggled.connect(self.alternatives.setVisible)
+        self.details_toggle.toggled.connect(self.objectives.setVisible)
         layout.addWidget(self.alternatives)
+        layout.addWidget(self.objectives)
         self.details_body.hide()
         self.alternatives.hide()
+        self.objectives.hide()
         layout.addStretch()
 
     def render(self, scenario: Scenario, entries: list[HistoryEntry], active: HistoryEntry) -> None:
@@ -256,6 +323,27 @@ class ResultsPage(QWidget):
         self.overview.render(active.state)
         clear_layout(self.decisions)
         path = history_path(entries, active.id)
+        self.assessment = assess_path(scenario, entries, active)
+        self.assessment_summary.setText(
+            f"Оценка решений: {self.assessment.score}/100\n"
+            f"Безопасных: {self.assessment.safe} · Рискованных: {self.assessment.risky} · "
+            f"Нейтральных: {self.assessment.neutral}"
+        )
+        self.assessment_summary.setToolTip(
+            "Полезное решение: 2 балла; нейтральное: 1; рискованное: 0. "
+            "Сумма переводится в шкалу 0–100. Итоговый риск показан отдельно."
+        )
+        self.risk_chart.set_values(self.assessment.risks)
+        self.point_detail.setText(
+            "Нажмите точку графика: увидите действие и причину изменения риска."
+        )
+        self.recommendations.setText(
+            "Рекомендация: " + self.assessment.mistakes[0].recommendation
+            if self.assessment.mistakes
+            else "Полезные действия сохранили данные. "
+            "Продолжайте проверять источник перед доверием."
+        )
+        self.objectives.setText("Что разобрано в этой теме\n" + "\n".join(scenario.objectives))
         self.details_toggle.setChecked(False)
         self.export_status.clear()
         self.risk_history.setText(
@@ -287,3 +375,12 @@ class ResultsPage(QWidget):
             if suggestions
             else "Пароль и файлы защищены. Можно вернуться к выбору и сравнить другой результат."
         )
+
+    def _show_point(self, index: int) -> None:
+        if index == 0:
+            self.point_detail.setText("Начало выбранного пути. Решений ещё нет. Риск 0/100.")
+        else:
+            item = self.assessment.decisions[index - 1]
+            self.point_detail.setText(
+                f"{item.title}: {item.risk_before} → {item.risk_after}. {item.explanation}"
+            )

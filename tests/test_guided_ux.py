@@ -29,10 +29,10 @@ def test_first_launch_explains_goal_and_reaches_first_choice_in_two_clicks(guide
     assert "Интерактивный тренажёр кибербезопасности" in labels
     assert any("Вы будете принимать решения" in text for text in labels)
     assert [button.text() for button in window.menu.findChildren(QPushButton)] == [
-        "Начать обучение",
+        "Начать симуляцию",
         "Продолжить",
-        "Мои результаты",
-        "Как это работает?",
+        "История результатов",
+        "Как это работает",
     ]
     original = window.lab.entries
     window.start_button.click()

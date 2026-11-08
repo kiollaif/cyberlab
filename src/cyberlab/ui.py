@@ -2,14 +2,11 @@
 
 import sqlite3
 from collections.abc import Callable
-from datetime import datetime
 
 from PySide6.QtCore import QIODevice, QSaveFile, QSettings, Qt
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QStackedWidget,
@@ -19,17 +16,19 @@ from PySide6.QtWidgets import (
 
 from cyberlab.ai_context import build_context
 from cyberlab.ai_panel import AiMentorPanel
-from cyberlab.learning import history_path
+from cyberlab.history_page import HistoryPage
 from cyberlab.navigation import WorkspaceNavigation
+from cyberlab.pdf_report import build_pdf_report
 from cyberlab.reports import build_report
 from cyberlab.review_pages import ComparisonPage, DecisionsPage
 from cyberlab.scenarios import SCENARIOS, get_scenario
 from cyberlab.session import LabSession
 from cyberlab.simulation_pages import ConsequencePage, ResultsPage, SituationPage
+from cyberlab.statistics import load_results
 from cyberlab.storage import Session
 from cyberlab.styles import STYLESHEET
 from cyberlab.tutorial import TutorialPage
-from cyberlab.ui_helpers import action_button, create_label, link_button, make_scrollable
+from cyberlab.ui_helpers import create_label, link_button, make_scrollable
 from cyberlab.virtual_computer import VirtualComputer
 from cyberlab.welcome_pages import HomePage, TrainingPage
 
@@ -52,7 +51,8 @@ class MainWindow(QMainWindow):
         self.back_stack: list[QWidget] = []
         self.pages: dict[QWidget, QWidget] = {}
         self._close_when_ai_finishes = False
-        self.setWindowTitle("CYBERLAB — тренажёр кибербезопасности")
+        self._tutorial_returns_to_training = False
+        self.setWindowTitle("CYBERLAB 2.0 — тренажёр кибербезопасности")
         # Qt считает размеры в логических пикселях: при масштабе 150% их меньше.
         self.setMinimumSize(600, 400)
         available = self.screen().availableGeometry()
@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         self.training_start_button = self.training.start_button
         self.training_start_button.clicked.connect(lambda: self._perform(self._start_new_session))
         self.training.resume_button.clicked.connect(lambda: self._perform(self._resume))
+        self.training.lesson_offer.clicked.connect(self._training_tutorial)
         self._sync_scenario_selector()
         self.scenario_selector.currentIndexChanged.connect(self._select_scenario)
         self.situation = SituationPage()
@@ -135,6 +136,7 @@ class MainWindow(QMainWindow):
         self.results.menu_requested.connect(self.show_menu)
         self.results.details_requested.connect(self._open_computer)
         self.results.export_requested.connect(self._export_report)
+        self.results.pdf_requested.connect(lambda: self._export_report(pdf=True))
         self.decisions.entry_requested.connect(self._go_to)
         self.decisions.alternative_requested.connect(self._try_alternative)
         self.decisions.root_requested.connect(self._return_to_start)
@@ -265,10 +267,11 @@ class MainWindow(QMainWindow):
         self.navigation.collapse_tools()
         target = self._resume_target()
         self.resume_button.setEnabled(target is not None)
+        self.resume_button.setVisible(target is not None)
         self.menu.resume_hint.setText(
             f"Сохранено: {get_scenario(target.scenario_id).title}."
             if target is not None
-            else "«Продолжить» станет доступно, когда вы начнёте тренировку."
+            else "Начните симуляцию или сначала откройте «Как это работает»."
         )
         self._show(self.menu)
 
@@ -293,6 +296,13 @@ class MainWindow(QMainWindow):
         )
         self.scenario_selector.blockSignals(False)
         self.scenario_description.setText(self.lab.scenario.summary)
+        self.training.objectives.setText(
+            f"Сложность: {self.lab.scenario.difficulty}\nЧему научитесь\n"
+            + "\n".join(self.lab.scenario.objectives)
+        )
+        self.training.lesson_offer.setVisible(
+            not self.settings.value("tutorial_completed", False, type=bool)
+        )
         was_started = self.settings.value("last_session", "") == self.lab.session.id
         has_progress = was_started or len(self.lab.entries) > 1
         self.training.resume_button.setVisible(has_progress)
@@ -320,20 +330,25 @@ class MainWindow(QMainWindow):
         self._perform(select)
         self._sync_scenario_selector()
 
-    def _export_report(self) -> None:
+    def _export_report(self, *, pdf: bool = False) -> None:
+        extension = "pdf" if pdf else "txt"
         filename, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить учебный отчёт",
-            f"CYBERLAB-{self.lab.scenario.id}.txt",
-            "Текст UTF-8 (*.txt)",
+            f"CYBERLAB-{self.lab.scenario.id}.{extension}",
+            "Документ PDF (*.pdf)" if pdf else "Текст UTF-8 (*.txt)",
         )
         if not filename:
             return
 
         def save() -> None:
             self.results.export_status.clear()
-            data = build_report(self.lab.scenario, self.lab.entries, self.lab.active).encode(
-                "utf-8"
+            data = (
+                build_pdf_report(self.lab.scenario, self.lab.entries, self.lab.active)
+                if pdf
+                else build_report(self.lab.scenario, self.lab.entries, self.lab.active).encode(
+                    "utf-8"
+                )
             )
             # QSaveFile сначала пишет временный файл: ошибка не повреждает прежний отчёт.
             target = QSaveFile(filename)
@@ -358,13 +373,24 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, error_title, str(error))
 
     def _replay_tutorial(self) -> None:
+        self._tutorial_returns_to_training = False
         self.tutorial.reset()
+        self.tutorial.finish_button.setText("На главную")
+        self._show(self.tutorial, remember=True)
+
+    def _training_tutorial(self) -> None:
+        self._tutorial_returns_to_training = True
+        self.tutorial.reset()
+        self.tutorial.finish_button.setText("К выбору сценария")
         self._show(self.tutorial, remember=True)
 
     def _finish_tutorial(self) -> None:
         self.settings.setValue("tutorial_completed", True)
         self.settings.sync()
-        self.show_menu()
+        if self._tutorial_returns_to_training:
+            self._open_training()
+        else:
+            self.show_menu()
 
     def _start_new_session(self) -> None:
         # LabSession уже создаёт пустую тренировку при первом запуске.
@@ -493,64 +519,19 @@ class MainWindow(QMainWindow):
 
         self._perform(show_comparison)
 
-    def _create_sessions_page(self) -> QWidget:
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setSpacing(16)
-        layout.addWidget(create_label("Мои результаты", "storyTitle"))
-        layout.addWidget(
-            create_label("Все ваши темы. Выберите тренировку, чтобы вернуться к ней.", "muted")
-        )
-        self.session_list = QListWidget()
-        self.session_list.setWordWrap(True)
-        self.session_list.setMinimumHeight(260)
-        self.session_list.itemDoubleClicked.connect(lambda _item: self._open_selected_session())
-        layout.addWidget(self.session_list)
-        self.session_list.setAccessibleName("Сохранённые тренировки всех тем")
-        self.empty_history = create_label("Здесь появятся ваши решения и результаты.", "muted")
-        layout.addWidget(self.empty_history)
-        self.empty_start_button = action_button("Начать обучение", primary=True)
-        self.empty_start_button.clicked.connect(self._open_training)
-        layout.addWidget(self.empty_start_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.open_session_button = action_button("Открыть тренировку", primary=True)
-        self.open_session_button.clicked.connect(self._open_selected_session)
-        layout.addWidget(self.open_session_button, alignment=Qt.AlignmentFlag.AlignLeft)
+    def _create_sessions_page(self) -> HistoryPage:
+        page = HistoryPage(SCENARIOS)
+        self.session_list = page.list
+        self.empty_history = page.empty
+        self.empty_start_button = page.start_button
+        self.open_session_button = page.open_button
+        page.open_requested.connect(self._open_selected_session)
+        page.start_requested.connect(self._open_training)
         return page
 
     def _open_sessions(self) -> None:
         def show_sessions() -> None:
-            self.session_list.clear()
-            known_scenarios = {scenario.id: scenario for scenario in SCENARIOS}
-            for session in self.lab.repository.sessions():
-                scenario = known_scenarios.get(session.scenario_id)
-                if scenario is None:
-                    continue
-                entries = self.lab.repository.entries(session.id)
-                if len(entries) == 1:
-                    continue
-                active = self.lab.repository.entry(session.active_entry_id, session.id)
-                date = (
-                    datetime.fromisoformat(entries[0].created_at)
-                    .astimezone()
-                    .strftime("%d.%m.%Y %H:%M")
-                )
-                status = "Завершено" if scenario.node(active.node_id).terminal else "В процессе"
-                decisions = len(history_path(entries, active.id)) - 1
-                item = QListWidgetItem(
-                    f"{scenario.title}\n{status} · {date} · Решений: {decisions}"
-                )
-                item.setToolTip(
-                    f"Решений в пути: {decisions}. Всего сохранено шагов: {len(entries)}."
-                )
-                item.setData(Qt.ItemDataRole.UserRole, session.id)
-                item.setData(Qt.ItemDataRole.UserRole + 1, scenario.id)
-                self.session_list.addItem(item)
-            self.empty_history.setVisible(self.session_list.count() == 0)
-            self.empty_start_button.setVisible(self.session_list.count() == 0)
-            self.session_list.setVisible(self.session_list.count() > 0)
-            self.open_session_button.setVisible(self.session_list.count() > 0)
-            self.open_session_button.setEnabled(self.session_list.count() > 0)
-            self.session_list.setCurrentRow(0)
+            self.saved_sessions.render(load_results(self.lab.repository, SCENARIOS))
             self._show(self.saved_sessions, remember=True)
 
         self._perform(show_sessions)
@@ -565,6 +546,9 @@ class MainWindow(QMainWindow):
                 item.data(Qt.ItemDataRole.UserRole),
                 scenario=get_scenario(item.data(Qt.ItemDataRole.UserRole + 1)),
             )
+            entry_id = item.data(Qt.ItemDataRole.UserRole + 2)
+            if self.lab.active.id != entry_id:
+                self.lab.go_to(entry_id)
             self._sync_scenario_selector()
             self._remember_session()
             self._display_active()

@@ -6,6 +6,7 @@ MESSAGE = Scenario(
     id="message-v1",
     title="Сообщение с подозрительной ссылкой",
     kind="message",
+    artifact="Сообщение в учебном чате",
     summary="Знакомое имя просит срочно проголосовать. Проверьте просьбу другим способом.",
     difficulty="Начальный",
     objectives=(

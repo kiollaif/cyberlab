@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cyberlab"
-version = "0.1.0"
+version = "2.0.0b1"
 description = "Интерактивный симулятор киберугроз с ветвящейся историей решений"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"

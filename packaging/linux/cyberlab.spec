@@ -1,6 +1,6 @@
 Name: cyberlab
-Version: 0.1.0
-Release: alt0.1
+Version: 2.0.0
+Release: alt0.beta1
 Summary: Interactive cybersecurity learning laboratory
 License: Proprietary
 Group: Education

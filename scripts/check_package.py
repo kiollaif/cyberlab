@@ -67,11 +67,11 @@ def main() -> None:
             [str(python), str(root / "scripts" / "smoke_offline.py"), "--installed"],
             cwd=workspace,
         )
-        report = workspace / "four-scenarios.json"
+        report = workspace / "six-scenarios.json"
         run([str(python), "-m", "cyberlab", "--smoke-test", str(report)], cwd=workspace)
         result = json.loads(report.read_text(encoding="utf-8"))
         assert result["success"] and not result["network_attempts"], result
-        print("Installed wheel: four scenarios, alternatives, TXT report and SQLite passed.")
+        print("Installed wheel: six scenarios, alternatives, TXT/PDF and SQLite passed.")
 
 
 if __name__ == "__main__":

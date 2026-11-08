@@ -1,6 +1,6 @@
-; Сборка: ISCC /DAppVersion=0.1.0 packaging\windows\CyberLab.iss
+; Сборка: ISCC /DAppVersion=2.0.0-beta.1 packaging\windows\CyberLab.iss
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "2.0.0-beta.1"
 #endif
 
 [Setup]

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from cyberlab import __version__
 from cyberlab.desktop import application_icon, integrate_appimage
+from cyberlab.pdf_report import build_pdf_report
 from cyberlab.reports import build_report
 from cyberlab.scenarios import SCENARIOS
 from cyberlab.session import LabSession
@@ -118,6 +119,7 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                             "enable_macros",
                             "submit",
                             "run",
+                            "download",
                         )
                         choice = next(
                             (c for c in window.lab.node.choices if c.id in preferred),
@@ -133,6 +135,8 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                         "attachment": "quarantine",
                         "website": "bookmark",
                         "usb": "hand_over",
+                        "message": "delete",
+                        "download": "official",
                     }[scenario.kind]
                     window.situation.findChild(QPushButton, f"choice_{safe_choice}").click()
                     window.consequence.continue_button.click()
@@ -148,8 +152,17 @@ def run_smoke_test(app: QApplication, report_path: Path) -> int:
                     export.write_text(text, encoding="utf-8")
                     assert export.read_text(encoding="utf-8") == text
                     assert scenario.title in text and dangerous.choice_title not in text
+                    pdf = build_pdf_report(scenario, window.lab.entries, safer)
+                    (folder / "Отчёт.pdf").write_bytes(pdf)
+                    assert pdf.startswith(b"%PDF-") and pdf.rstrip().endswith(b"%%EOF")
                     scenario_results[scenario.id] = safer
-                report["checks"].append("four scenarios, rewind, alternatives, TXT report")
+                window.show_menu()
+                window.sessions_button.click()
+                assert window.session_list.count() == len(SCENARIOS) * 2
+                assert {0, 100}.issubset(set(window.saved_sessions.chart.values))
+                report["checks"].append(
+                    "six scenarios, rewind, alternatives, TXT/PDF reports, statistics"
+                )
                 window.close()
                 repository.close()
                 restored = HistoryRepository(database)

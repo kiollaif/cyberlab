@@ -40,6 +40,12 @@ def wait_until(predicate, message):
              for combo in window.comparison.selectors],
             window.comparison.include_steps.minimumSizeHint().width(),
             window.pages[window.comparison].viewport().width(),
+            'active page geometry', window.pages[window.current_page].widget().width(),
+            window.pages[window.current_page].viewport().width(),
+            window.current_page.minimumSizeHint().width(),
+            'sidebar', window.navigation.width(), window.navigation.compact,
+            'buttons', [(button.text(),button.minimumSizeHint().width())
+                        for button in window.current_page.findChildren(QPushButton)],
         )
 app = QApplication([])
 settings = QSettings(sys.argv[1], QSettings.Format.IniFormat)

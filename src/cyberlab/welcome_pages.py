@@ -80,7 +80,9 @@ class TrainingPage(QWidget):
         self.start_button = action_button("Начать тренировку", primary=True)
         self.start_button.setObjectName("start_simulation")
         layout.addWidget(self.start_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.lesson_offer = link_button("Первый раз? Пройти короткий вводный урок")
+        self.lesson_offer = link_button(
+            "Пройти вводный урок", "Первый раз? Пять коротких экранов с пробным действием."
+        )
         layout.addWidget(self.lesson_offer, alignment=Qt.AlignmentFlag.AlignLeft)
         self.resume_button = link_button("Продолжить эту тему")
         layout.addWidget(self.resume_button, alignment=Qt.AlignmentFlag.AlignLeft)

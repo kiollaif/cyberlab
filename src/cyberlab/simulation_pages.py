@@ -121,7 +121,7 @@ class SituationPage(QWidget):
         self.mentor_toggle.toggled.connect(self.mentor.setVisible)
         layout.addWidget(self.mentor_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.mentor)
-        self.signs_toggle = link_button("На какие признаки обратить внимание?")
+        self.signs_toggle = link_button("Признаки риска", "На какие признаки обратить внимание?")
         self.signs_toggle.setCheckable(True)
         self.signs = create_label("", "muted")
         self.signs.hide()

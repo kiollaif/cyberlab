@@ -36,10 +36,14 @@ def remaining_decisions(scenario: Scenario, node_id: str) -> int:
 
 
 def risk_level(risk: int) -> str:
-    if risk >= 60:
+    if not 0 <= risk <= 100:
+        raise ValueError("Риск должен быть от 0 до 100.")
+    if risk >= 76:
+        return "Критический"
+    if risk >= 51:
         return "Высокий"
-    if risk >= 25:
-        return "Повышенный"
+    if risk >= 26:
+        return "Умеренный"
     return "Низкий"
 
 
@@ -77,5 +81,5 @@ def state_summary(state: ComputerState) -> str:
     if state.threat_blocked:
         return "Угроза остановлена. Пароль и виртуальные файлы защищены."
     if state.browser_open:
-        return "Открыта страница из письма. Учебный пароль ещё не отправлен."
+        return "Открыта учебная страница. Учебный пароль ещё не отправлен."
     return "Пароль и файлы защищены. Источник требует проверки."

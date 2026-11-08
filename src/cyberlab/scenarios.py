@@ -2,6 +2,8 @@
 
 from cyberlab.additional_scenarios import ATTACHMENT, FAKE_WEBSITE, USB
 from cyberlab.domain import Choice, Scenario, ScenarioNode, StateChange
+from cyberlab.download_scenario import DOWNLOAD
+from cyberlab.message_scenario import MESSAGE
 
 PHISHING = Scenario(
     id="phishing-v1",
@@ -157,7 +159,7 @@ PHISHING = Scenario(
 )
 
 # Порядок определяет каталог в интерфейсе. Опубликованный phishing-v1 остаётся первым.
-SCENARIOS = (PHISHING, ATTACHMENT, FAKE_WEBSITE, USB)
+SCENARIOS = (PHISHING, ATTACHMENT, FAKE_WEBSITE, USB, MESSAGE, DOWNLOAD)
 
 
 def get_scenario(scenario_id: str) -> Scenario:

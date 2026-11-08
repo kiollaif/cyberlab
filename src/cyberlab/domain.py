@@ -91,6 +91,7 @@ class ScenarioNode:
     title: str
     description: str
     choices: tuple[Choice, ...] = ()
+    signs: tuple[str, ...] = ()
 
     @property
     def terminal(self) -> bool:
@@ -113,6 +114,11 @@ class Scenario:
     sender_address: str = "help@cyberlab-support.invalid"
     site_address: str = "https://login.cyberlab-check.invalid"
     artifact: str = ""
+    difficulty: str = "Начальный"
+    objectives: tuple[str, ...] = (
+        "Проверять отправителя и адрес ссылки до передачи данных.",
+        "Останавливать подозрительное действие и обращаться за помощью.",
+    )
 
     def node(self, node_id: str) -> ScenarioNode:
         for node in self.nodes:

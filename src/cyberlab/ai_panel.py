@@ -207,9 +207,13 @@ class AiMentorPanel(QWidget):
             else "Локальный наставник — офлайн"
         )
         self.answer.setPlainText(reply.text)
-        self.status.setText(
-            reply.error or "Ответ наставника получен. Сверяйте его с результатами тренировки."
-        )
+        if not self.client.configured and not getattr(self.client, "configuration_error", ""):
+            # Отсутствие платного сервиса — нормальный режим, а не ошибка ученика.
+            self.status.setText("Ответ локального помощника. Интернет и оплата не требуются.")
+        else:
+            self.status.setText(
+                reply.error or "Ответ наставника получен. Сверяйте его с результатами тренировки."
+            )
         if reply.usage is not None:
             self.usage.setText(
                 f"Токены: вход {reply.usage.prompt}, ответ {reply.usage.completion}, "

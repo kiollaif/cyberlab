@@ -93,7 +93,8 @@ def test_no_key_uses_local_mentor_and_scenario_still_works(qtbot, window):
     panel.decision_button.click()
     qtbot.waitUntil(lambda: not panel.busy)
     assert panel.mode.text() == "Локальный наставник — офлайн"
-    assert "не задан" in panel.status.text()
+    assert "локального помощника" in panel.status.text()
+    assert "DEEPSEEK_API_KEY" not in panel.status.text()
     assert "чужой домен" in panel.answer.toPlainText()
     window.back_button.click()
     window.consequence.continue_button.click()
